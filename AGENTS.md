@@ -1,0 +1,4 @@
+- 日本語で簡潔かつ丁寧に回答する
+- 実装前に `.codex/plans/active/` に plan を作成する
+- 最新の active plan を source of truth として実装する
+- 変更は必要最小限に留め、テストまたは検証コマンドを実行する

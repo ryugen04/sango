@@ -1,0 +1,104 @@
+package cmd
+
+import (
+	"fmt"
+	"path/filepath"
+	"time"
+
+	"github.com/ryugen04/sango/internal/worktree"
+	"github.com/spf13/cobra"
+)
+
+var cloneShallow bool
+
+var cloneCmd = &cobra.Command{
+	Use:   "clone",
+	Short: "リポジトリをクローンしてworktreeを初期化する",
+	Long:  "sango.yamlのrepoフィールドを持つ各サービスをbare cloneし、デフォルトブランチのワークツリーを作成する",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := loadConfig()
+		if err != nil {
+			return err
+		}
+
+		sangoDir := worktree.DefaultDir()
+
+		// デフォルトブランチ名を決定（worktree名にも使用）
+		defaultBranch := cfg.Worktree.DefaultBranch
+		if defaultBranch == "" {
+			defaultBranch = "main"
+		}
+
+		// 各サービスのリポジトリをbare clone + worktree作成
+		var services []string
+		for name, svc := range cfg.Services {
+			// dockerサービスやrepo未設定はgit操作不要
+			if svc.Type == "docker" || svc.Repo == "" {
+				continue
+			}
+
+			services = append(services, name)
+
+			// repo_pathが指定されている場合はbare cloneせず、
+			// 既存クローンからworktree addする想定（別途対応）
+			if svc.RepoPath != "" {
+				fmt.Printf("[sango] %s: repo_pathが指定されています。既存クローンを使用します\n", name)
+				continue
+			}
+
+			fmt.Printf("[sango] %s をクローン中... (%s)\n", name, svc.Repo)
+			if err := worktree.BareClone(sangoDir, name, svc.Repo, cloneShallow); err != nil {
+				return fmt.Errorf("サービス %s のクローンに失敗: %w", name, err)
+			}
+
+			wtPath, err := filepath.Abs(filepath.Join(cfg.Worktree.WorktreeDir(defaultBranch), name))
+			if err != nil {
+				return fmt.Errorf("ワークツリーパスの解決に失敗: %w", err)
+			}
+			fmt.Printf("[sango] %s のワークツリーを作成中... (branch: %s)\n", name, defaultBranch)
+			if err := worktree.WorktreeAdd(sangoDir, name, wtPath, defaultBranch); err != nil {
+				return fmt.Errorf("サービス %s のワークツリー作成に失敗: %w", name, err)
+			}
+		}
+
+		// worktrees.json初期化
+		baseOffset := cfg.Ports.BaseOffset
+		if baseOffset == 0 {
+			baseOffset = 100
+		}
+
+		ws := &worktree.WorktreeState{
+			Active: defaultBranch,
+			Worktrees: map[string]*worktree.WorktreeInfo{
+				defaultBranch: {
+					Offset:    0,
+					CreatedAt: time.Now(),
+					Services:  services,
+				},
+			},
+			SharedServices: make(map[string]*worktree.SharedService),
+			NextOffset:     baseOffset,
+		}
+
+		// sharedサービスを登録
+		for name, svc := range cfg.Services {
+			if svc.Shared {
+				ws.SharedServices[name] = &worktree.SharedService{
+					Port: svc.Port,
+				}
+			}
+		}
+
+		if err := ws.Save(sangoDir); err != nil {
+			return fmt.Errorf("worktrees.jsonの保存に失敗: %w", err)
+		}
+
+		fmt.Println("[sango] クローン完了")
+		return nil
+	},
+}
+
+func init() {
+	cloneCmd.Flags().BoolVar(&cloneShallow, "shallow", false, "浅いクローンを実行する")
+	rootCmd.AddCommand(cloneCmd)
+}
