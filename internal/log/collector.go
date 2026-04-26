@@ -11,19 +11,21 @@ import (
 )
 
 // Collector はサービスのstdout/stderrをJSONLファイルに収集する
+// 実プロセス用には *os.File、スクリプト用には io.Writer を返す。
 type Collector struct {
 	logDir   string
 	service  string
 	worktree string
 	file     *os.File
 	mu       sync.Mutex
+	wg       sync.WaitGroup
 
-	// ローテーション設定
 	maxSize  int64
 	maxFiles int
 
-	// パイプの参照（Close時に閉じる）
+	stdoutPipeR *os.File
 	stdoutPipeW *os.File
+	stderrPipeR *os.File
 	stderrPipeW *os.File
 }
 
@@ -45,47 +47,85 @@ func NewCollector(sangoDir, worktree, service string) (*Collector, error) {
 		service:  service,
 		worktree: worktree,
 		file:     f,
-		maxSize:  50 * 1024 * 1024, // 50MB
+		maxSize:  50 * 1024 * 1024,
 		maxFiles: 5,
 	}, nil
 }
 
-// StdoutFile はcmd.Stdoutに設定する*os.Fileを返す
-// ログファイルに直接書き込むことで、パイプによるEPIPE/SIGPIPEを完全に防ぐ
+// StdoutFile は stdout 用の *os.File を返す。
 func (c *Collector) StdoutFile() (*os.File, error) {
-	return c.file, nil
+	return c.ensurePipe("stdout")
 }
 
-// StderrFile はcmd.Stderrに設定する*os.Fileを返す
-// stdoutと同じログファイルに書き込む
+// StderrFile は stderr 用の *os.File を返す。
 func (c *Collector) StderrFile() (*os.File, error) {
-	return c.file, nil
+	return c.ensurePipe("stderr")
 }
 
-// StdoutWriter はcmd.Stdoutに設定するio.Writerを返す（後方互換性用）
+// StdoutWriter は stdout 用 writer を返す。
 func (c *Collector) StdoutWriter() (io.Writer, error) {
 	return c.StdoutFile()
 }
 
-// StderrWriter はcmd.Stderrに設定するio.Writerを返す（後方互換性用）
+// StderrWriter は stderr 用 writer を返す。
 func (c *Collector) StderrWriter() (io.Writer, error) {
 	return c.StderrFile()
+}
+
+func (c *Collector) ensurePipe(stream string) (*os.File, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	switch stream {
+	case "stdout":
+		if c.stdoutPipeW != nil {
+			return c.stdoutPipeW, nil
+		}
+		r, w, err := os.Pipe()
+		if err != nil {
+			return nil, err
+		}
+		c.stdoutPipeR = r
+		c.stdoutPipeW = w
+		c.wg.Add(1)
+		go func() {
+			defer c.wg.Done()
+			c.scanAndWrite(r, "stdout", os.Stdout)
+			_ = r.Close()
+		}()
+		return w, nil
+	case "stderr":
+		if c.stderrPipeW != nil {
+			return c.stderrPipeW, nil
+		}
+		r, w, err := os.Pipe()
+		if err != nil {
+			return nil, err
+		}
+		c.stderrPipeR = r
+		c.stderrPipeW = w
+		c.wg.Add(1)
+		go func() {
+			defer c.wg.Done()
+			c.scanAndWrite(r, "stderr", os.Stderr)
+			_ = r.Close()
+		}()
+		return w, nil
+	default:
+		return nil, fmt.Errorf("unsupported stream: %s", stream)
+	}
 }
 
 // scanAndWrite はパイプから行を読み取り、ターミナルとJSONLファイルの両方に書き込む
 func (c *Collector) scanAndWrite(r io.Reader, stream string, terminal *os.File) {
 	scanner := bufio.NewScanner(r)
-	// 64KBバッファで長い行にも対応
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, 1024*1024)
 
 	for scanner.Scan() {
 		line := scanner.Text()
+		_, _ = terminal.WriteString(line + "\n")
 
-		// ターミナルに出力
-		terminal.WriteString(line + "\n")
-
-		// JSONL書き込み
 		entry := &LogEntry{
 			Timestamp: time.Now(),
 			Service:   c.service,
@@ -97,9 +137,8 @@ func (c *Collector) scanAndWrite(r io.Reader, stream string, terminal *os.File) 
 
 		data, err := entry.Marshal()
 		if err != nil {
-			// マーシャリング失敗時はフォールバック
-			fallback := fmt.Sprintf(`{"ts":"%s","svc":"%s","stream":"%s","msg":"[marshal error] %s"}`,
-				time.Now().Format(time.RFC3339), c.service, stream, line)
+			fallback := fmt.Sprintf(`{"ts":"%s","svc":"%s","wt":"%s","stream":"%s","msg":"[marshal error] %s"}`,
+				time.Now().Format(time.RFC3339), c.service, c.worktree, stream, line)
 			data = []byte(fallback)
 		}
 
@@ -115,20 +154,17 @@ func (c *Collector) writeWithRotation(data []byte) {
 	if err == nil && info.Size()+int64(len(data)) > c.maxSize {
 		c.rotate()
 	}
-	c.file.Write(data)
+	_, _ = c.file.Write(data)
 }
 
 // rotate はログファイルをローテーションする
 func (c *Collector) rotate() {
 	basePath := filepath.Join(c.logDir, c.service+".jsonl")
-
-	// 新ファイルを先に開く準備のため、現在のファイルを閉じてローテーション
-	c.file.Close()
+	_ = c.file.Close()
 	Rotate(basePath, c.maxFiles)
 
 	f, err := os.OpenFile(basePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
-		// 失敗時は /dev/null に書き込みを逃がす
 		f, _ = os.OpenFile(os.DevNull, os.O_WRONLY, 0)
 	}
 	c.file = f
@@ -144,12 +180,21 @@ func (c *Collector) SetRotationConfig(maxSize int64, maxFiles int) {
 
 // Close はログファイルとパイプを閉じる
 func (c *Collector) Close() error {
-	if c.stdoutPipeW != nil {
-		c.stdoutPipeW.Close()
+	c.mu.Lock()
+	stdoutW := c.stdoutPipeW
+	stderrW := c.stderrPipeW
+	c.stdoutPipeW = nil
+	c.stderrPipeW = nil
+	c.mu.Unlock()
+
+	if stdoutW != nil {
+		_ = stdoutW.Close()
 	}
-	if c.stderrPipeW != nil {
-		c.stderrPipeW.Close()
+	if stderrW != nil {
+		_ = stderrW.Close()
 	}
+	c.wg.Wait()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.file.Close()

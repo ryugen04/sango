@@ -1,0 +1,43 @@
+# Generated default rules for sango
+
+prefix_rule(
+    pattern = ["git", "fetch"],
+    decision = "allow",
+    justification = "Fetching remote refs is read-oriented.",
+    match = ["git fetch origin main"],
+)
+
+prefix_rule(
+    pattern = ["go", "test"],
+    decision = "allow",
+    justification = "Go tests are routine verification in this repository.",
+    match = ["go test ./...", "go test ./internal/log"],
+)
+
+prefix_rule(
+    pattern = ["go", "run"],
+    decision = "allow",
+    justification = "Routine local CLI verification for sango commands.",
+    match = ["go run . audit inventory --root . --format text"],
+)
+
+prefix_rule(
+    pattern = ["gofmt", "-w"],
+    decision = "allow",
+    justification = "Formatting Go files is a routine safe action.",
+    match = ["gofmt -w internal/log/collector.go"],
+)
+
+prefix_rule(
+    pattern = ["make", "verify"],
+    decision = "allow",
+    justification = "Repository standard verification command.",
+    match = ["make verify"],
+)
+
+prefix_rule(
+    pattern = ["claude"],
+    decision = "forbidden",
+    justification = "This repository is Codex-only. Do not use Claude commands here.",
+    match = ["claude -p \"review\"", "claude auth status"],
+)

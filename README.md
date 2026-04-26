@@ -78,6 +78,18 @@ sango audit inventory --format json --include-runtime
 - 既定除外: `.sango/logs`, `.sango/pids`, `.sango/bare`, `.sango/work`, `.sango/template-cache`, `.sango/locks`
 - JSON 出力先既定: `.sango/audit/inventory.json`
 
+## Development
+
+```bash
+make verify
+go test ./...
+go run . audit inventory --root . --format text
+```
+
+- Codex workflow は `.codex/README.md` と `.codex/docs/ai-dlc-workflow.md` を正本とする
+- CI は `.github/workflows/ci.yml`、release は `.github/workflows/release.yml` を参照する
+- release は `v*` tag push を入口にする
+
 ## 設定ファイル
 
 `sango.yaml` の基本構造:
@@ -129,6 +141,8 @@ doctor:
 
 - [設定リファレンス](docs/configuration.md) - `sango.yaml` の全スキーマ
 - [Worktreeガイド](docs/worktree.md) - Worktreeベースの並行開発ワークフロー
+- [.codex/docs/ai-dlc-workflow.md](.codex/docs/ai-dlc-workflow.md) - Codex / ai-dlc 運用
+- [.codex/docs/release.md](.codex/docs/release.md) - release 手順
 
 ## ライセンス
 

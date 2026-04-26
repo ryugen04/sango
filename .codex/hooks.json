@@ -1,0 +1,52 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.codex/hooks/session_start.py\"",
+            "statusMessage": "Loading active plan context"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.codex/hooks/user_prompt_submit.py\"",
+            "statusMessage": "Recording workflow learnings"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.codex/hooks/pre_tool_use.py\"",
+            "statusMessage": "Checking plan policy"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.codex/hooks/stop.py\"",
+            "statusMessage": "Checking workflow completeness"
+          }
+        ]
+      }
+    ]
+  }
+}
