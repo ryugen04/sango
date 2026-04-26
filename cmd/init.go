@@ -12,19 +12,36 @@ const sangoYAMLTemplate = `name: my-project
 version: "1.0"
 
 services:
-  # example:
-  #   type: process
-  #   port: 3000
-  #   command: npm start
+  api:
+    type: process
+    working_dir: ./api
+    command: npm run dev
+    port: 3000
+
+  web:
+    type: process
+    working_dir: ./web
+    command: npm run dev
+    port: 5173
+    depends_on: [api]
+    open_url: http://localhost:${PORT}
 
 ports:
   strategy: fixed
+  base_offset: 100
   range: [3000, 9999]
+
+worktree:
+  default_branch: main
+  auto_setup: true
+  include:
+    root: []
 
 doctor:
   checks:
     - name: Git
       command: git --version
+      expect: "git version"
 `
 
 var initCmd = &cobra.Command{

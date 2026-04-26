@@ -12,7 +12,7 @@ var worktreeFlag string
 
 var rootCmd = &cobra.Command{
 	Use:   "sango",
-	Short: "ポリレポ開発オーケストレーター",
+	Short: "複数 repo / worktree の開発環境を迷わず扱うための CLI",
 }
 
 func init() {

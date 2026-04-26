@@ -29,6 +29,11 @@
 - `claude -p` や `claude-plan-review` などの Claude 実行は project hook/rule で禁止する
 - 実装は active plan を source of truth とする
 
+## Config Policy
+
+- `.codex/config.toml` では model を固定しない
+- 最新安定モデルは Codex CLI のデフォルト選択に委譲する
+
 ## Test Policy
 
 - 変更中は対象テストを優先する
@@ -47,3 +52,4 @@
 - `.codex/docs/release.md`: release 手順
 - `.codex/docs/migration-status-roadmap.md`: 移行の進捗と次フェーズ
 - `.codex/docs/asset-portability-and-troubleshoot.md`: 資産再利用ポリシーと troubleshoot 管理モデル
+- `.codex/docs/personal-oss-roadmap.md`: 個人 OSS としての製品方針と次の実装順
