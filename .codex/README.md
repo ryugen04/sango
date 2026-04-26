@@ -40,3 +40,10 @@
 - CI は push / pull_request で `make verify` を実行する
 - release は `v*` tag で GitHub Release を作成する
 - バイナリは `sango` として publish する
+
+## Additional Docs
+
+- `.codex/docs/ai-dlc-workflow.md`: 日常運用フロー
+- `.codex/docs/release.md`: release 手順
+- `.codex/docs/migration-status-roadmap.md`: 移行の進捗と次フェーズ
+- `.codex/docs/asset-portability-and-troubleshoot.md`: 資産再利用ポリシーと troubleshoot 管理モデル
