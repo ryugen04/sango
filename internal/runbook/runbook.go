@@ -8,9 +8,9 @@ import (
 
 // SearchResult は検索結果
 type SearchResult struct {
-	ServiceName string
-	Entry       config.RunbookEntry
-	MatchField  string // "title" | "symptoms" | "cause" | "tags"
+	ServiceName string              `json:"service_name"`
+	Entry       config.RunbookEntry `json:"entry"`
+	MatchField  string              `json:"match_field"` // "title" | "symptoms" | "cause" | "tags"
 }
 
 // Search は全サービスのrunbookからキーワードにマッチするエントリを返す

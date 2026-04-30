@@ -7,10 +7,41 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
+	"github.com/ryugen04/sango/internal/config"
 	"github.com/ryugen04/sango/internal/process"
 	"github.com/ryugen04/sango/internal/worktree"
 	"github.com/spf13/cobra"
 )
+
+var worktreeStatusJSON bool
+
+type worktreeStatusService struct {
+	Name   string `json:"name"`
+	Port   int    `json:"port,omitempty"`
+	Status string `json:"status"`
+	PID    int    `json:"pid,omitempty"`
+	Shared bool   `json:"shared,omitempty"`
+}
+
+type worktreeStatusEntry struct {
+	Name     string                  `json:"name"`
+	Offset   int                     `json:"offset"`
+	Active   bool                    `json:"active"`
+	Services []worktreeStatusService `json:"services,omitempty"`
+}
+
+type worktreeSharedStatusEntry struct {
+	Name   string `json:"name"`
+	Port   int    `json:"port"`
+	Status string `json:"status"`
+	PID    int    `json:"pid,omitempty"`
+}
+
+type worktreeStatusOutput struct {
+	Active         string                      `json:"active"`
+	Worktrees      []worktreeStatusEntry       `json:"worktrees"`
+	SharedServices []worktreeSharedStatusEntry `json:"shared_services,omitempty"`
+}
 
 var worktreeStatusCmd = &cobra.Command{
 	Use:   "status",
@@ -25,6 +56,11 @@ var worktreeStatusCmd = &cobra.Command{
 		cfg, err := loadConfig()
 		if err != nil {
 			return err
+		}
+
+		output := buildWorktreeStatusOutput(sangoDir, ws, cfg)
+		if worktreeStatusJSON {
+			return writeJSON(cmd.OutOrStdout(), output)
 		}
 
 		green := lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
@@ -184,6 +220,100 @@ var worktreeStatusCmd = &cobra.Command{
 	},
 }
 
+func buildWorktreeStatusOutput(sangoDir string, ws *worktree.WorktreeState, cfg *config.Config) worktreeStatusOutput {
+	output := worktreeStatusOutput{
+		Active:    ws.Active,
+		Worktrees: make([]worktreeStatusEntry, 0, len(ws.Worktrees)),
+	}
+
+	wtNames := make([]string, 0, len(ws.Worktrees))
+	for name := range ws.Worktrees {
+		wtNames = append(wtNames, name)
+	}
+	sort.Strings(wtNames)
+
+	for _, wtName := range wtNames {
+		wt := ws.Worktrees[wtName]
+		entry := worktreeStatusEntry{
+			Name:   wtName,
+			Offset: wt.Offset,
+			Active: wtName == ws.Active,
+		}
+
+		serviceNames := make([]string, 0)
+		for _, name := range wt.Services {
+			svc := cfg.Services[name]
+			if svc == nil {
+				continue
+			}
+			if svc.Repo != "" && svc.Command == "" {
+				continue
+			}
+			serviceNames = append(serviceNames, name)
+		}
+		sort.Strings(serviceNames)
+
+		wtKey := worktree.ToKey(wtName)
+		for _, name := range serviceNames {
+			svc := cfg.Services[name]
+			status := "stopped"
+			pid := 0
+
+			pidWorktree := wtKey
+			if svc.Shared {
+				pidWorktree = "shared"
+			}
+			if p, err := process.ReadPID(sangoDir, pidWorktree, name); err == nil && process.IsProcessRunning(p) {
+				status = "running"
+				pid = p
+			}
+
+			resolvedPort := 0
+			if svc.Port > 0 {
+				resolvedPort = svc.Port
+				if !svc.Shared {
+					resolvedPort += wt.Offset
+				}
+			}
+
+			entry.Services = append(entry.Services, worktreeStatusService{
+				Name:   name,
+				Port:   resolvedPort,
+				Status: status,
+				PID:    pid,
+				Shared: svc.Shared,
+			})
+		}
+
+		output.Worktrees = append(output.Worktrees, entry)
+	}
+
+	sharedNames := make([]string, 0, len(ws.SharedServices))
+	for name := range ws.SharedServices {
+		sharedNames = append(sharedNames, name)
+	}
+	sort.Strings(sharedNames)
+
+	for _, name := range sharedNames {
+		ss := ws.SharedServices[name]
+		status := "stopped"
+		pid := 0
+		if p, err := process.ReadPID(sangoDir, "shared", name); err == nil && process.IsProcessRunning(p) {
+			status = "running"
+			pid = p
+		}
+		output.SharedServices = append(output.SharedServices, worktreeSharedStatusEntry{
+			Name:   name,
+			Port:   ss.Port,
+			Status: status,
+			PID:    pid,
+		})
+	}
+
+	return output
+}
+
 func init() {
+	worktreeStatusCmd.Flags().BoolVar(&worktreeStatusJSON, "json", false, "JSONで出力する")
 	worktreeCmd.AddCommand(worktreeStatusCmd)
 }

@@ -11,11 +11,11 @@ import (
 
 // CheckResult はトラブルシュートチェックの結果
 type CheckResult struct {
-	Name        string
-	Description string
-	Status      Status
-	Output      string
-	Fix         string
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Status      Status `json:"status"`
+	Output      string `json:"output"`
+	Fix         string `json:"fix,omitempty"`
 }
 
 // Status はチェック結果のステータス

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 
@@ -11,6 +12,15 @@ import (
 	"github.com/ryugen04/sango/internal/service"
 	"github.com/spf13/cobra"
 )
+
+var statusJSON bool
+
+type statusOutput struct {
+	Worktree       string                 `json:"worktree"`
+	SharedServices []service.ServiceInfo  `json:"shared_services,omitempty"`
+	Services       []service.ServiceInfo  `json:"services"`
+	Worktrees      []service.WorktreeInfo `json:"worktrees,omitempty"`
+}
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
@@ -29,6 +39,10 @@ var statusCmd = &cobra.Command{
 		result, err := orch.Status()
 		if err != nil {
 			return err
+		}
+
+		if statusJSON {
+			return writeJSON(cmd.OutOrStdout(), buildStatusOutput(result))
 		}
 
 		green := lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
@@ -133,6 +147,39 @@ var statusCmd = &cobra.Command{
 	},
 }
 
+func buildStatusOutput(result *service.StatusResult) statusOutput {
+	output := statusOutput{
+		Worktree:  result.Worktree,
+		Services:  slices.Clone(result.Services),
+		Worktrees: slices.Clone(result.Worktrees),
+	}
+
+	sort.Slice(output.Services, func(i, j int) bool {
+		return output.Services[i].Name < output.Services[j].Name
+	})
+
+	for _, svc := range output.Services {
+		if svc.IsShared {
+			output.SharedServices = append(output.SharedServices, svc)
+		}
+	}
+
+	sort.Slice(output.SharedServices, func(i, j int) bool {
+		return output.SharedServices[i].Name < output.SharedServices[j].Name
+	})
+
+	sort.Slice(output.Worktrees, func(i, j int) bool {
+		return output.Worktrees[i].Name < output.Worktrees[j].Name
+	})
+	for i := range output.Worktrees {
+		sort.Slice(output.Worktrees[i].Services, func(a, b int) bool {
+			return output.Worktrees[i].Services[a].Name < output.Worktrees[i].Services[b].Name
+		})
+	}
+
+	return output
+}
+
 func renderStatus(status string, green, gray, yellow lipgloss.Style) string {
 	switch status {
 	case "running":
@@ -185,5 +232,6 @@ func renderListen(portNumber int, status string, green, gray, yellow lipgloss.St
 }
 
 func init() {
+	statusCmd.Flags().BoolVar(&statusJSON, "json", false, "JSONで出力する")
 	rootCmd.AddCommand(statusCmd)
 }

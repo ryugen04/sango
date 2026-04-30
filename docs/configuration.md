@@ -2,6 +2,8 @@
 
 `sango.yaml` の全スキーマを解説する。
 
+`sango` は、複数 repo / 複数 worktree の日常開発をシンプルに扱うことを優先する。設定もその思想に合わせて、まずは最小構成から始める前提で読む。
+
 ## トップレベル
 
 ```yaml
@@ -140,7 +142,7 @@ worktree:
   default_branch: main         # デフォルトブランチ名
 
   include:
-    common:                    # 全サービス共通のファイル配置
+    root:                      # worktreeルートに置く共有ファイル
       - source: .env.template
         target: .env
         strategy: copy         # copy / symlink / template
@@ -197,7 +199,7 @@ sango troubleshoot api          # 指定サービスのみ
 sango troubleshoot api --fix    # 失敗チェックのfixコマンドを自動実行
 ```
 
-全チェックがpassなら終了コード0、failがあれば終了コード1。
+fail / pass の判定はコマンド出力または `--json` 出力の内容で確認する。終了コードは、コマンド実行そのものが失敗した場合のみ非0。
 
 ---
 

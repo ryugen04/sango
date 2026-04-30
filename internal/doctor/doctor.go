@@ -10,10 +10,10 @@ import (
 
 // CheckResult は個別チェックの結果
 type CheckResult struct {
-	Name    string
-	Status  Status
-	Message string
-	Fix     string
+	Name    string `json:"name"`
+	Status  Status `json:"status"`
+	Message string `json:"message"`
+	Fix     string `json:"fix,omitempty"`
 }
 
 // Status はチェック結果のステータス

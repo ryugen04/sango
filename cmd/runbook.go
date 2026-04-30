@@ -2,13 +2,26 @@ package cmd
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
+	"github.com/ryugen04/sango/internal/config"
 	"github.com/ryugen04/sango/internal/runbook"
 	"github.com/spf13/cobra"
 )
 
 var runbookServiceFilter string
+var runbookJSON bool
+
+type runbookSearchOutput struct {
+	Keyword string                 `json:"keyword"`
+	Results []runbook.SearchResult `json:"results"`
+}
+
+type runbookListService struct {
+	ServiceName string                `json:"service_name"`
+	Entries     []config.RunbookEntry `json:"entries"`
+}
 
 var runbookCmd = &cobra.Command{
 	Use:   "runbook",
@@ -27,6 +40,19 @@ var runbookSearchCmd = &cobra.Command{
 
 		keyword := args[0]
 		results := runbook.Search(cfg.Services, keyword)
+		sort.Slice(results, func(i, j int) bool {
+			if results[i].ServiceName == results[j].ServiceName {
+				return results[i].Entry.Title < results[j].Entry.Title
+			}
+			return results[i].ServiceName < results[j].ServiceName
+		})
+
+		if runbookJSON {
+			return writeJSON(cmd.OutOrStdout(), runbookSearchOutput{
+				Keyword: keyword,
+				Results: emptyRunbookResults(results),
+			})
+		}
 
 		fmt.Printf("[sango] runbook検索: %q\n\n", keyword)
 
@@ -69,20 +95,22 @@ var runbookListCmd = &cobra.Command{
 			return err
 		}
 
+		services := buildRunbookList(cfg.Services, runbookServiceFilter)
+		if runbookJSON {
+			return writeJSON(cmd.OutOrStdout(), services)
+		}
+
 		fmt.Println("[sango] runbook一覧")
 		fmt.Println()
 
-		found := false
-		for name, svc := range cfg.Services {
-			if runbookServiceFilter != "" && name != runbookServiceFilter {
-				continue
-			}
-			if len(svc.Runbook) == 0 {
-				continue
-			}
-			found = true
-			fmt.Printf("  %s:\n", name)
-			for _, entry := range svc.Runbook {
+		if len(services) == 0 {
+			fmt.Println("  Runbookが定義されているサービスがありません")
+			return nil
+		}
+
+		for _, svc := range services {
+			fmt.Printf("  %s:\n", svc.ServiceName)
+			for _, entry := range svc.Entries {
 				tagStr := ""
 				if len(entry.Tags) > 0 {
 					tagStr = fmt.Sprintf(" [%s]", strings.Join(entry.Tags, ", "))
@@ -91,16 +119,44 @@ var runbookListCmd = &cobra.Command{
 			}
 		}
 
-		if !found {
-			fmt.Println("  Runbookが定義されているサービスがありません")
-		}
-
 		return nil
 	},
 }
 
+func buildRunbookList(services map[string]*config.Service, filter string) []runbookListService {
+	names := make([]string, 0, len(services))
+	for name, svc := range services {
+		if filter != "" && name != filter {
+			continue
+		}
+		if len(svc.Runbook) == 0 {
+			continue
+		}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	result := make([]runbookListService, 0, len(names))
+	for _, name := range names {
+		result = append(result, runbookListService{
+			ServiceName: name,
+			Entries:     services[name].Runbook,
+		})
+	}
+	return result
+}
+
+func emptyRunbookResults(results []runbook.SearchResult) []runbook.SearchResult {
+	if results == nil {
+		return []runbook.SearchResult{}
+	}
+	return results
+}
+
 func init() {
 	runbookListCmd.Flags().StringVar(&runbookServiceFilter, "service", "", "サービス名で絞り込み")
+	runbookListCmd.Flags().BoolVar(&runbookJSON, "json", false, "JSONで出力する")
+	runbookSearchCmd.Flags().BoolVar(&runbookJSON, "json", false, "JSONで出力する")
 	runbookCmd.AddCommand(runbookSearchCmd)
 	runbookCmd.AddCommand(runbookListCmd)
 	rootCmd.AddCommand(runbookCmd)
