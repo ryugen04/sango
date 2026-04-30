@@ -74,12 +74,12 @@ func runWorktreeCreate(cfg *config.Config, branch string) error {
 		return err
 	}
 
-	// ベースブランチ
-	baseBranch := wtCreateFrom
-	if baseBranch == "" {
-		baseBranch = cfg.Worktree.DefaultBranch
-		if baseBranch == "" {
-			baseBranch = "main"
+	// グローバルベースブランチ
+	globalBaseBranch := wtCreateFrom
+	if globalBaseBranch == "" {
+		globalBaseBranch = cfg.Worktree.DefaultBranch
+		if globalBaseBranch == "" {
+			globalBaseBranch = "main"
 		}
 	}
 
@@ -101,6 +101,12 @@ func runWorktreeCreate(cfg *config.Config, branch string) error {
 		if svc.Type == "docker" || svc.Repo == "" {
 			allServiceNames = append(allServiceNames, name)
 			continue
+		}
+
+		// サービスごとのベースブランチ（--from 未指定時のみサービス設定を優先）
+		baseBranch := globalBaseBranch
+		if wtCreateFrom == "" && svc.DefaultBranch != "" {
+			baseBranch = svc.DefaultBranch
 		}
 
 		wtDir := cfg.Worktree.WorktreeDir(branch)
@@ -174,7 +180,7 @@ func runWorktreeCreate(cfg *config.Config, branch string) error {
 		Offset:     offset,
 		CreatedAt:  time.Now(),
 		Services:   allServiceNames,
-		FromBranch: baseBranch,
+		FromBranch: globalBaseBranch,
 	})
 
 	if err := ws.Save(sangoDir); err != nil {

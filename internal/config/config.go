@@ -98,9 +98,10 @@ type Service struct {
 	RestartDelay string            `yaml:"restart_delay"`
 	MaxRestarts  int               `yaml:"max_restarts"`
 	Volumes      []string          `yaml:"volumes"`
-	Repo         string            `yaml:"repo"`
-	RepoName     string            `yaml:"repo_name"`
-	RepoPath     string            `yaml:"repo_path"`
+	Repo          string            `yaml:"repo"`
+	RepoName      string            `yaml:"repo_name"`
+	RepoPath      string            `yaml:"repo_path"`
+	DefaultBranch string            `yaml:"default_branch"`
 	RunOn        []string          `yaml:"run_on"`
 	Troubleshoot []TroubleshootCheck `yaml:"troubleshoot"`
 	Runbook      []RunbookEntry      `yaml:"runbook"`
