@@ -26,6 +26,12 @@ func RebaseServices(cfg *config.Config, sangoDir string, wtName string, wtInfo *
 			continue
 		}
 
+		// サービスごとのベースブランチ
+		svcBaseBranch := baseBranch
+		if svc.DefaultBranch != "" {
+			svcBaseBranch = svc.DefaultBranch
+		}
+
 		// リポジトリ名を解決
 		repoName := svcName
 		if svc.RepoName != "" {
@@ -51,7 +57,7 @@ func RebaseServices(cfg *config.Config, sangoDir string, wtName string, wtInfo *
 			}
 		}
 
-		fmt.Fprintf(os.Stderr, "[sango] Rebasing %s onto %s...\n", repoName, baseBranch)
+		fmt.Fprintf(os.Stderr, "[sango] Rebasing %s onto %s...\n", repoName, svcBaseBranch)
 
 		// 未コミット変更の確認
 		hasChanges, err := HasUncommittedChanges(absWtDir)
@@ -73,9 +79,9 @@ func RebaseServices(cfg *config.Config, sangoDir string, wtName string, wtInfo *
 		}
 
 		// rebase
-		if err := GitRebase(absWtDir, baseBranch); err != nil {
+		if err := GitRebase(absWtDir, svcBaseBranch); err != nil {
 			fmt.Fprintf(os.Stderr, "[sango]   ✗ %s: rebase conflict detected, aborted\n", repoName)
-			fmt.Fprintf(os.Stderr, "[sango]     Run manually: cd %s && git rebase origin/%s\n", absWtDir, baseBranch)
+			fmt.Fprintf(os.Stderr, "[sango]     Run manually: cd %s && git rebase origin/%s\n", absWtDir, svcBaseBranch)
 			GitRebaseAbort(absWtDir)
 			// stashがあった場合はpopして復元
 			if hasChanges {

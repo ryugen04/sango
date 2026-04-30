@@ -55,6 +55,7 @@ services:
 | `max_restarts` | int | No | 最大再起動回数 |
 | `repo` | string | No | クローン元リポジトリURL |
 | `repo_path` | string | No | 既存リポジトリのローカルパス |
+| `default_branch` | string | No | このサービスのデフォルトブランチ（worktree作成・rebase時に使用。未設定時は`worktree.default_branch`を使用） |
 | `run_on` | []string | No | 実行対象ワークツリー名リスト |
 | `troubleshoot` | []object | No | トラブルシュート定義 |
 | `runbook` | []object | No | Runbook定義 |
