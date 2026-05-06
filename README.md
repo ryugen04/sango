@@ -56,7 +56,7 @@ sango down
 | コマンド | 説明 |
 |---------|------|
 | `sango init` | `sango.yaml` テンプレートを生成 |
-| `sango up [services...] [--profile name]` | サービスを起動 |
+| `sango up [services...] [--profile name]` | サービスを起動。未指定時は対話で対象や `default-ports` を選択可能 |
 | `sango down [--all]` | サービスを停止 |
 | `sango restart [services...] [--profile name]` | サービスを再起動 |
 | `sango status [--json]` | 現在の worktree を基準に状態を確認 |
@@ -78,11 +78,11 @@ sango down
 | コマンド | 説明 |
 |---------|------|
 | `sango clone [--shallow]` | リポジトリをbare clone＆初期worktree作成 |
-| `sango worktree create <branch>` | ワークツリーを作成 |
+| `sango worktree create [branch]` | ワークツリーを作成。未指定時は対話入力 |
 | `sango worktree list` | ワークツリー一覧 |
 | `sango worktree status [--json]` | 全ワークツリーの状態を表示 |
-| `sango worktree switch <branch>` | アクティブワークツリーを切替 |
-| `sango worktree remove <branch>` | ワークツリーを削除 |
+| `sango worktree switch [branch]` | アクティブワークツリーを切替。未指定時は選択 |
+| `sango worktree remove [branch]` | ワークツリーを削除。未指定時は選択 |
 | `sango runbook list [--service name]` | Runbook一覧を表示 |
 | `sango dashboard` | TUI で一覧・軽操作を行う |
 

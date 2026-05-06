@@ -26,14 +26,9 @@ var worktreeVerifyCmd = &cobra.Command{
 		}
 
 		// ブランチ名の解決
-		var branch string
-		if len(args) > 0 {
-			branch = args[0]
-		} else {
-			branch = ws.Active
-			if branch == "" {
-				return fmt.Errorf("アクティブなワークツリーがありません。ブランチ名を指定してください")
-			}
+		branch, err := resolveWorktreeNameArg(args, ws, ws.Active, "検証対象のワークツリーを選択してください")
+		if err != nil {
+			return err
 		}
 
 		wt, exists := ws.Worktrees[branch]

@@ -32,11 +32,9 @@ var worktreeSyncCmd = &cobra.Command{
 		}
 
 		// worktree名解決
-		wtName := ""
-		if len(args) > 0 {
-			wtName = args[0]
-		} else {
-			wtName = service.ResolveActiveWorktree(sangoDir, worktreeFlag)
+		wtName, err := resolveWorktreeNameArg(args, ws, service.ResolveActiveWorktree(sangoDir, worktreeFlag), "sync 対象のワークツリーを選択してください")
+		if err != nil {
+			return err
 		}
 
 		wtInfo, ok := ws.Worktrees[wtName]

@@ -21,7 +21,11 @@ var upCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		return runUp(cfg, args, upProfile)
+		targets, err := resolveUpTargets(cfg, args, upProfile, stdinIsTerminal())
+		if err != nil {
+			return err
+		}
+		return runUp(cfg, targets, upProfile)
 	},
 }
 
