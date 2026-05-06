@@ -8,7 +8,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/ryugen04/sango/internal/doctor"
 	"github.com/ryugen04/sango/internal/service"
-	"github.com/ryugen04/sango/internal/worktree"
 	"github.com/spf13/cobra"
 )
 
@@ -22,6 +21,7 @@ type doctorSummary struct {
 }
 
 type doctorReport struct {
+	machineMeta
 	Results []doctor.CheckResult `json:"results"`
 	Summary doctorSummary        `json:"summary"`
 }
@@ -43,6 +43,11 @@ var doctorCmd = &cobra.Command{
 		report := buildDoctorReport(results)
 
 		if doctorJSON {
+			projectRoot, err := currentProjectRoot()
+			if err != nil {
+				return err
+			}
+			report.machineMeta = newMachineMeta(projectRoot)
 			return writeJSON(cmd.OutOrStdout(), report)
 		}
 
@@ -117,7 +122,10 @@ func collectDoctorResults() ([]doctor.CheckResult, error) {
 	results := doctor.Run(checks)
 	results = append(results, doctor.CheckLinuxSandbox()...)
 
-	sangoDir := worktree.DefaultDir()
+	sangoDir, err := currentSangoDir()
+	if err != nil {
+		return nil, err
+	}
 	wtName := service.ResolveActiveWorktree(sangoDir, worktreeFlag)
 	orch, orchErr := service.NewOrchestratorWithWorktree(cfg, cfgFile, service.OrchestratorOptions{WorktreeFlag: worktreeFlag})
 	if orchErr == nil {

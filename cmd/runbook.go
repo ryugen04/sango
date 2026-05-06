@@ -14,6 +14,7 @@ var runbookServiceFilter string
 var runbookJSON bool
 
 type runbookSearchOutput struct {
+	machineMeta
 	Keyword string                 `json:"keyword"`
 	Results []runbook.SearchResult `json:"results"`
 }
@@ -21,6 +22,11 @@ type runbookSearchOutput struct {
 type runbookListService struct {
 	ServiceName string                `json:"service_name"`
 	Entries     []config.RunbookEntry `json:"entries"`
+}
+
+type runbookListOutput struct {
+	machineMeta
+	Services []runbookListService `json:"services"`
 }
 
 var runbookCmd = &cobra.Command{
@@ -48,9 +54,14 @@ var runbookSearchCmd = &cobra.Command{
 		})
 
 		if runbookJSON {
+			projectRoot, err := currentProjectRoot()
+			if err != nil {
+				return err
+			}
 			return writeJSON(cmd.OutOrStdout(), runbookSearchOutput{
-				Keyword: keyword,
-				Results: emptyRunbookResults(results),
+				machineMeta: newMachineMeta(projectRoot),
+				Keyword:     keyword,
+				Results:     emptyRunbookResults(results),
 			})
 		}
 
@@ -97,7 +108,14 @@ var runbookListCmd = &cobra.Command{
 
 		services := buildRunbookList(cfg.Services, runbookServiceFilter)
 		if runbookJSON {
-			return writeJSON(cmd.OutOrStdout(), services)
+			projectRoot, err := currentProjectRoot()
+			if err != nil {
+				return err
+			}
+			return writeJSON(cmd.OutOrStdout(), runbookListOutput{
+				machineMeta: newMachineMeta(projectRoot),
+				Services:    services,
+			})
 		}
 
 		fmt.Println("[sango] runbook一覧")

@@ -45,6 +45,12 @@ type OrchestratorOptions struct {
 // NewOrchestratorWithWorktree はworktree名を指定してOrchestratorを生成する
 func NewOrchestratorWithWorktree(cfg *config.Config, cfgFile string, opts OrchestratorOptions) (*Orchestrator, error) {
 	sangoDir := worktree.DefaultDir()
+	if cfgFile != "" {
+		if absCfg, err := filepath.Abs(cfgFile); err == nil {
+			cfgFile = absCfg
+			sangoDir = filepath.Join(filepath.Dir(absCfg), ".sango")
+		}
+	}
 	wtName := ResolveActiveWorktree(sangoDir, opts.WorktreeFlag)
 	wtKey := worktree.ToKey(wtName)
 

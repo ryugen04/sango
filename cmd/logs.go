@@ -24,6 +24,7 @@ var (
 	logsFollow bool
 	logsJSON   bool
 	logsLimit  int
+	logsCursor string
 )
 
 // サービスごとの色割り当て
@@ -42,7 +43,10 @@ var logsCmd = &cobra.Command{
 	Use:   "logs [services...]",
 	Short: "サービスのログを表示する",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		sangoDir := worktree.DefaultDir()
+		sangoDir, err := currentSangoDir()
+		if err != nil {
+			return err
+		}
 		wtName := resolveActiveWorktree(sangoDir)
 		wtKey := worktree.ToKey(wtName)
 
@@ -55,7 +59,7 @@ var logsCmd = &cobra.Command{
 		}
 
 		if logsSince != "" {
-			since, err := parseDuration(logsSince)
+			since, err := parseLogSince(logsSince)
 			if err != nil {
 				return fmt.Errorf("--since の解析に失敗: %w", err)
 			}
@@ -70,6 +74,7 @@ var logsCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("ログの読み込みに失敗: %w", err)
 		}
+		entries = applyLogCursor(entries, logsCursor)
 
 		colorMap := buildColorMap(entries)
 		for _, entry := range entries {
@@ -81,12 +86,13 @@ var logsCmd = &cobra.Command{
 }
 
 func init() {
-	logsCmd.Flags().StringVar(&logsSince, "since", "", "時間フィルタ (例: 5m, 1h, 30s)")
+	logsCmd.Flags().StringVar(&logsSince, "since", "", "時間フィルタ (例: 2026-05-06T12:00:00Z, 5m, 1h, 30s)")
 	logsCmd.Flags().StringVar(&logsGrep, "grep", "", "テキストフィルタ (正規表現)")
 	logsCmd.Flags().StringVar(&logsLevel, "level", "", "ログレベルフィルタ (info/warn/error/debug)")
 	logsCmd.Flags().BoolVarP(&logsFollow, "follow", "f", false, "リアルタイムフォロー")
 	logsCmd.Flags().BoolVar(&logsJSON, "json", false, "JSON出力 (生JSONL)")
 	logsCmd.Flags().IntVarP(&logsLimit, "tail", "n", 0, "表示行数制限")
+	logsCmd.Flags().StringVar(&logsCursor, "cursor", "", "このcursorより後のログだけを出力する")
 	rootCmd.AddCommand(logsCmd)
 }
 
@@ -122,7 +128,7 @@ func followLogs(sangoDir string, filter sangoLog.Filter) error {
 
 func printEntry(entry sangoLog.LogEntry, colorMap map[string]lipgloss.Style) {
 	if logsJSON {
-		data, _ := json.Marshal(entry)
+		data, _ := json.Marshal(buildLogOutputEntry(entry))
 		fmt.Println(string(data))
 		return
 	}
@@ -163,6 +169,84 @@ func buildColorMap(entries []sangoLog.LogEntry) map[string]lipgloss.Style {
 		}
 	}
 	return colorMap
+}
+
+type logOutputEntry struct {
+	SchemaVersion     int    `json:"schema_version"`
+	Timestamp         string `json:"ts"`
+	Cursor            string `json:"cursor"`
+	ServiceID         string `json:"service_id"`
+	ServiceInstanceID string `json:"service_instance_id"`
+	WorktreeSetID     string `json:"worktree_set_id,omitempty"`
+	Level             string `json:"level,omitempty"`
+	Message           string `json:"message"`
+	Stream            string `json:"stream"`
+}
+
+func buildLogOutputEntry(entry sangoLog.LogEntry) logOutputEntry {
+	worktreeSetID := logWorktreeSetID(entry.Worktree)
+	return logOutputEntry{
+		SchemaVersion:     machineSchemaVersion,
+		Timestamp:         entry.Timestamp.UTC().Format(time.RFC3339Nano),
+		Cursor:            buildLogCursor(entry),
+		ServiceID:         entry.Service,
+		ServiceInstanceID: serviceInstanceID(worktreeSetID, entry.Service),
+		WorktreeSetID:     worktreeSetID,
+		Level:             entry.Level,
+		Message:           entry.Message,
+		Stream:            entry.Stream,
+	}
+}
+
+func logWorktreeSetID(wt string) string {
+	if wt == "" {
+		return "unknown"
+	}
+	return worktree.FromKey(wt)
+}
+
+func buildLogCursor(entry sangoLog.LogEntry) string {
+	return fmt.Sprintf("%s:%s:%020d", logWorktreeSetID(entry.Worktree), entry.Service, entry.Timestamp.UTC().UnixNano())
+}
+
+func applyLogCursor(entries []sangoLog.LogEntry, cursor string) []sangoLog.LogEntry {
+	if cursor == "" {
+		return entries
+	}
+	cursorTS, ok := parseLogCursor(cursor)
+	if !ok {
+		return entries
+	}
+	out := make([]sangoLog.LogEntry, 0, len(entries))
+	for _, entry := range entries {
+		entryTS := entry.Timestamp.UTC()
+		if entryTS.After(cursorTS) || (entryTS.Equal(cursorTS) && buildLogCursor(entry) > cursor) {
+			out = append(out, entry)
+		}
+	}
+	return out
+}
+
+func parseLogCursor(cursor string) (time.Time, bool) {
+	i := strings.LastIndex(cursor, ":")
+	if i < 0 || i == len(cursor)-1 {
+		return time.Time{}, false
+	}
+	nanos, err := strconv.ParseInt(cursor[i+1:], 10, 64)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return time.Unix(0, nanos).UTC(), true
+}
+
+func parseLogSince(s string) (time.Time, error) {
+	if ts, err := time.Parse(time.RFC3339, s); err == nil {
+		return ts, nil
+	}
+	if ts, err := time.Parse(time.RFC3339Nano, s); err == nil {
+		return ts, nil
+	}
+	return parseDuration(s)
 }
 
 // parseDuration は "5m", "1h", "30s", "7d" 形式の文字列をtime.Timeに変換する

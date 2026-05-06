@@ -16,6 +16,7 @@ import (
 var statusJSON bool
 
 type statusOutput struct {
+	machineMeta
 	Worktree       string                 `json:"worktree"`
 	SharedServices []service.ServiceInfo  `json:"shared_services,omitempty"`
 	Services       []service.ServiceInfo  `json:"services"`
@@ -42,7 +43,13 @@ var statusCmd = &cobra.Command{
 		}
 
 		if statusJSON {
-			return writeJSON(cmd.OutOrStdout(), buildStatusOutput(result))
+			projectRoot, err := currentProjectRoot()
+			if err != nil {
+				return err
+			}
+			output := buildStatusOutput(result)
+			output.machineMeta = newMachineMeta(projectRoot)
+			return writeJSON(cmd.OutOrStdout(), output)
 		}
 
 		green := lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
@@ -157,6 +164,9 @@ func buildStatusOutput(result *service.StatusResult) statusOutput {
 	sort.Slice(output.Services, func(i, j int) bool {
 		return output.Services[i].Name < output.Services[j].Name
 	})
+	for i := range output.Services {
+		setServiceInfoIDs(&output.Services[i], output.Worktree)
+	}
 
 	for _, svc := range output.Services {
 		if svc.IsShared {
@@ -175,9 +185,22 @@ func buildStatusOutput(result *service.StatusResult) statusOutput {
 		sort.Slice(output.Worktrees[i].Services, func(a, b int) bool {
 			return output.Worktrees[i].Services[a].Name < output.Worktrees[i].Services[b].Name
 		})
+		for j := range output.Worktrees[i].Services {
+			setServiceInfoIDs(&output.Worktrees[i].Services[j], output.Worktrees[i].Name)
+		}
 	}
 
 	return output
+}
+
+func setServiceInfoIDs(info *service.ServiceInfo, worktreeSetID string) {
+	info.ID = info.Name
+	info.ServiceID = info.Name
+	if info.IsShared {
+		worktreeSetID = "shared"
+	}
+	info.WorktreeSetID = worktreeSetID
+	info.ServiceInstanceID = serviceInstanceID(worktreeSetID, info.Name)
 }
 
 func renderStatus(status string, green, gray, yellow lipgloss.Style) string {
