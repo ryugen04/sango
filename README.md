@@ -111,8 +111,6 @@ go run . audit inventory --root . --format text
 go run . status --json --config testdata/valid.yaml
 go run . doctor --json --config testdata/valid.yaml
 ```
-
-- Codex workflow は `.codex/README.md` と `.codex/docs/ai-dlc-workflow.md` を正本とする
 - CI は `.github/workflows/ci.yml`、release は `.github/workflows/release.yml` を参照する
 - release は `v*` tag push を入口にする
 
@@ -194,8 +192,6 @@ doctor:
 
 - [設定リファレンス](docs/configuration.md) - `sango.yaml` の全スキーマ
 - [Worktreeガイド](docs/worktree.md) - Worktreeベースの並行開発ワークフロー
-- [.codex/docs/ai-dlc-workflow.md](.codex/docs/ai-dlc-workflow.md) - Codex / ai-dlc 運用
-- [.codex/docs/release.md](.codex/docs/release.md) - release 手順
 
 ## ライセンス
 
