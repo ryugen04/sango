@@ -31,11 +31,9 @@ var worktreeRebaseCmd = &cobra.Command{
 		}
 
 		// 対象worktree名を決定
-		var wtName string
-		if len(args) > 0 {
-			wtName = args[0]
-		} else {
-			wtName = ws.Active
+		wtName, err := resolveWorktreeNameArg(args, ws, ws.Active, "rebase 対象のワークツリーを選択してください")
+		if err != nil {
+			return err
 		}
 		if wtName == "" {
 			return fmt.Errorf("ワークツリー名を指定するか、アクティブワークツリーを設定してください")

@@ -21,13 +21,19 @@ var (
 )
 
 var worktreeCreateCmd = &cobra.Command{
-	Use:   "create <branch>",
+	Use:   "create [branch]",
 	Short: "新しいワークツリーを作成する",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		branch := args[0]
 		cfg, err := loadConfig()
 		if err != nil {
+			return err
+		}
+		branch, err := resolveWorktreeCreateBranch(args)
+		if err != nil {
+			return err
+		}
+		if err := maybePromptWorktreeCreateOptions(cfg, len(args) == 0, cmd.Flags().Changed("from"), cmd.Flags().Changed("no-setup")); err != nil {
 			return err
 		}
 		return runWorktreeCreate(cfg, branch)

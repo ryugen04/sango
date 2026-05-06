@@ -35,6 +35,9 @@ sango clone
 
 ```bash
 sango worktree create feature/auth
+
+# 引数なしなら対話入力
+sango worktree create
 ```
 
 全サービスに対してワークツリーを作成する。
@@ -57,6 +60,9 @@ sango worktree create feature/auth
 
 ```bash
 sango worktree switch feature/auth
+
+# 引数なしなら候補から選択
+sango worktree switch
 ```
 
 アクティブなワークツリーを切り替える。
@@ -80,6 +86,9 @@ sango worktree status
 
 ```bash
 sango worktree remove feature/auth
+
+# 引数なしなら候補から選択
+sango worktree remove
 ```
 
 | フラグ | 説明 |

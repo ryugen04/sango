@@ -14,17 +14,20 @@ var (
 )
 
 var worktreeSwitchCmd = &cobra.Command{
-	Use:   "switch <branch>",
+	Use:   "switch [branch]",
 	Short: "アクティブワークツリーを切り替える",
 	Long:  "デフォルトではactiveの切り替えのみ。--stop-currentで旧worktreeの停止、--startで新worktreeの起動も行う",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		branch := args[0]
 		sangoDir := worktree.DefaultDir()
 
 		ws, err := worktree.Load(sangoDir)
 		if err != nil {
 			return fmt.Errorf("worktrees.jsonの読み込みに失敗: %w", err)
+		}
+		branch, err := resolveWorktreeNameArg(args, ws, ws.Active, "切り替え先のワークツリーを選択してください")
+		if err != nil {
+			return err
 		}
 
 		// 対象worktreeの存在チェック

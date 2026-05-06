@@ -12,6 +12,8 @@ split_strategy: phased roadmap
 artifacts:
   plan: .codex/plans/active/20260426-sango-cli-tui-agent-roadmap.md
   execution: .codex/artifacts/execution/20260427-sango-personal-oss-slice1.md
+  child_plans:
+    - .codex/plans/active/202605071130-worktree-interactive-cli.md
   learnings:
 ---
 
@@ -178,6 +180,10 @@ artifacts:
 2. 日常利用で本当に推すコマンドセットを選別する
 3. その上で `status` と `doctor` から `--json` を実装する
 4. README / docs / init template を同じ思想へ揃える
+
+## Active Child Plans
+
+- `.codex/plans/active/202605071130-worktree-interactive-cli.md`: `worktree create` などの引数省略時インタラクティブ導線追加
 
 ## Agent Assignment
 

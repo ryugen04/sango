@@ -13,17 +13,20 @@ import (
 var wtRemoveForce bool
 
 var worktreeRemoveCmd = &cobra.Command{
-	Use:     "remove <branch>",
+	Use:     "remove [branch]",
 	Short:   "ワークツリーを削除する",
 	Aliases: []string{"rm"},
-	Args:    cobra.ExactArgs(1),
+	Args:    cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		branch := args[0]
 		sangoDir := worktree.DefaultDir()
 
 		ws, err := worktree.Load(sangoDir)
 		if err != nil {
 			return fmt.Errorf("worktrees.jsonの読み込みに失敗: %w", err)
+		}
+		branch, err := resolveWorktreeNameArg(args, ws, "", "削除するワークツリーを選択してください")
+		if err != nil {
+			return err
 		}
 
 		// アクティブworktreeは削除不可
