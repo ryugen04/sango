@@ -24,3 +24,6 @@ Thumbs.db
 
 # Sango runtime
 .sango/
+
+# Local Codex runtime state
+.codex/
