@@ -23,6 +23,7 @@ type troubleshootSummary struct {
 }
 
 type troubleshootReport struct {
+	machineMeta
 	Targets []troubleshootTarget `json:"targets"`
 	Summary troubleshootSummary  `json:"summary"`
 }
@@ -47,7 +48,11 @@ var troubleshootCmd = &cobra.Command{
 			}
 			if len(svc.Troubleshoot) == 0 {
 				if troubleshootJSON {
-					return writeJSON(cmd.OutOrStdout(), troubleshootReport{})
+					report, err := emptyTroubleshootReport()
+					if err != nil {
+						return err
+					}
+					return writeJSON(cmd.OutOrStdout(), report)
 				}
 				fmt.Printf("[sango] %s にトラブルシュートチェックが定義されていません\n", svcName)
 				return nil
@@ -72,7 +77,11 @@ var troubleshootCmd = &cobra.Command{
 
 		if len(targets) == 0 {
 			if troubleshootJSON {
-				return writeJSON(cmd.OutOrStdout(), buildTroubleshootReport(nil))
+				report, err := emptyTroubleshootReport()
+				if err != nil {
+					return err
+				}
+				return writeJSON(cmd.OutOrStdout(), report)
 			}
 			fmt.Println("[sango] トラブルシュートチェックが定義されているサービスがありません")
 			return nil
@@ -81,6 +90,11 @@ var troubleshootCmd = &cobra.Command{
 		report := buildTroubleshootReport(targets)
 
 		if troubleshootJSON {
+			projectRoot, err := currentProjectRoot()
+			if err != nil {
+				return err
+			}
+			report.machineMeta = newMachineMeta(projectRoot)
 			return writeJSON(cmd.OutOrStdout(), report)
 		}
 
@@ -120,6 +134,16 @@ var troubleshootCmd = &cobra.Command{
 
 		return nil
 	},
+}
+
+func emptyTroubleshootReport() (troubleshootReport, error) {
+	projectRoot, err := currentProjectRoot()
+	if err != nil {
+		return troubleshootReport{}, err
+	}
+	report := buildTroubleshootReport(nil)
+	report.machineMeta = newMachineMeta(projectRoot)
+	return report, nil
 }
 
 func buildTroubleshootReport(targets []troubleshootTarget) troubleshootReport {

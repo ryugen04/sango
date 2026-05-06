@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strconv"
 
@@ -37,25 +38,51 @@ type worktreeSharedStatusEntry struct {
 	PID    int    `json:"pid,omitempty"`
 }
 
+type worktreeStatusRepo struct {
+	ID   string `json:"id"`
+	Path string `json:"path"`
+}
+
+type worktreeStatusRepoWorktree struct {
+	ID         string `json:"id"`
+	Exists     bool   `json:"exists"`
+	Path       string `json:"path"`
+	Branch     string `json:"branch,omitempty"`
+	Head       string `json:"head,omitempty"`
+	DirtyFiles int    `json:"dirty_files"`
+}
+
+type worktreeStatusSet struct {
+	ID            string                                `json:"id"`
+	Active        bool                                  `json:"active"`
+	RepoWorktrees map[string]worktreeStatusRepoWorktree `json:"repo_worktrees"`
+}
+
 type worktreeStatusOutput struct {
-	Active         string                      `json:"active"`
-	Worktrees      []worktreeStatusEntry       `json:"worktrees"`
-	SharedServices []worktreeSharedStatusEntry `json:"shared_services,omitempty"`
+	machineMeta
+	Active            string                      `json:"active"`
+	ActiveWorktreeSet string                      `json:"active_worktree_set"`
+	Repos             []worktreeStatusRepo        `json:"repos"`
+	WorktreeSets      []worktreeStatusSet         `json:"worktree_sets"`
+	Worktrees         []worktreeStatusEntry       `json:"worktrees"`
+	SharedServices    []worktreeSharedStatusEntry `json:"shared_services,omitempty"`
 }
 
 var worktreeStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "全ワークツリーの状態を横断表示する",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		sangoDir := worktree.DefaultDir()
-		ws, err := worktree.Load(sangoDir)
-		if err != nil {
-			return fmt.Errorf("worktrees.jsonの読み込みに失敗: %w", err)
-		}
-
 		cfg, err := loadConfig()
 		if err != nil {
 			return err
+		}
+		sangoDir, err := currentSangoDir()
+		if err != nil {
+			return err
+		}
+		ws, err := worktree.Load(sangoDir)
+		if err != nil {
+			return fmt.Errorf("worktrees.jsonの読み込みに失敗: %w", err)
 		}
 
 		output := buildWorktreeStatusOutput(sangoDir, ws, cfg)
@@ -221,9 +248,23 @@ var worktreeStatusCmd = &cobra.Command{
 }
 
 func buildWorktreeStatusOutput(sangoDir string, ws *worktree.WorktreeState, cfg *config.Config) worktreeStatusOutput {
+	projectRoot := filepath.Dir(sangoDir)
+	active := ws.Active
+	if active == "" {
+		active = "main"
+	}
 	output := worktreeStatusOutput{
-		Active:    ws.Active,
-		Worktrees: make([]worktreeStatusEntry, 0, len(ws.Worktrees)),
+		machineMeta:       newMachineMeta(projectRoot),
+		Active:            active,
+		ActiveWorktreeSet: active,
+		Repos:             []worktreeStatusRepo{},
+		WorktreeSets:      []worktreeStatusSet{},
+		Worktrees:         make([]worktreeStatusEntry, 0, len(ws.Worktrees)),
+	}
+
+	repos := collectSnapshotRepos(projectRoot, cfg)
+	for _, repo := range repos {
+		output.Repos = append(output.Repos, worktreeStatusRepo{ID: repo.ID, Path: repo.Path})
 	}
 
 	wtNames := make([]string, 0, len(ws.Worktrees))
@@ -237,8 +278,26 @@ func buildWorktreeStatusOutput(sangoDir string, ws *worktree.WorktreeState, cfg 
 		entry := worktreeStatusEntry{
 			Name:   wtName,
 			Offset: wt.Offset,
-			Active: wtName == ws.Active,
+			Active: wtName == active,
 		}
+		matrixSet := worktreeStatusSet{
+			ID:            wtName,
+			Active:        wtName == active,
+			RepoWorktrees: make(map[string]worktreeStatusRepoWorktree, len(repos)),
+		}
+		for _, repo := range repos {
+			path := repoWorktreePath(projectRoot, cfg, wtName, repo.ID)
+			exists, branch, head, dirty := inspectRepoWorktree(path)
+			matrixSet.RepoWorktrees[repo.ID] = worktreeStatusRepoWorktree{
+				ID:         repoWorktreeID(wtName, repo.ID),
+				Exists:     exists,
+				Path:       path,
+				Branch:     branch,
+				Head:       head,
+				DirtyFiles: dirty.Files,
+			}
+		}
+		output.WorktreeSets = append(output.WorktreeSets, matrixSet)
 
 		serviceNames := make([]string, 0)
 		for _, name := range wt.Services {

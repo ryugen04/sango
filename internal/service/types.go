@@ -2,17 +2,21 @@ package service
 
 // ServiceInfo はサービスの状態情報
 type ServiceInfo struct {
-	Name          string `json:"name"`
-	Type          string `json:"type"`
-	Port          int    `json:"port"`
-	Status        string `json:"status"`
-	Health        string `json:"health,omitempty"`
-	PID           int    `json:"pid,omitempty"`
-	RestartCount  int    `json:"restart_count,omitempty"`
-	PortListening *bool  `json:"port_listening,omitempty"`
-	IsRepoOnly    bool   `json:"is_repo_only,omitempty"`
-	IsShared      bool   `json:"is_shared,omitempty"`
-	OpenURL       string `json:"open_url,omitempty"`
+	ID                string `json:"id,omitempty"`
+	ServiceID         string `json:"service_id,omitempty"`
+	ServiceInstanceID string `json:"service_instance_id,omitempty"`
+	WorktreeSetID     string `json:"worktree_set_id,omitempty"`
+	Name              string `json:"name"`
+	Type              string `json:"type"`
+	Port              int    `json:"port"`
+	Status            string `json:"status"`
+	Health            string `json:"health,omitempty"`
+	PID               int    `json:"pid,omitempty"`
+	RestartCount      int    `json:"restart_count,omitempty"`
+	PortListening     *bool  `json:"port_listening,omitempty"`
+	IsRepoOnly        bool   `json:"is_repo_only,omitempty"`
+	IsShared          bool   `json:"is_shared,omitempty"`
+	OpenURL           string `json:"open_url,omitempty"`
 }
 
 // WorktreeInfo はワークツリーの概要情報
