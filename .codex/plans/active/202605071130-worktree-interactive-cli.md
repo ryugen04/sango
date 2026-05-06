@@ -36,6 +36,7 @@ test_plan:
   - go test ./...
   - 必要なら対象コマンドの help 表示を目視確認
 approval_gates:
+  - `2026-05-07` のユーザー指示で `commit` / `push` / `PR create` は実行許可済み
   - destructive な cleanup はしない
 rollback:
   - 追加した対話ヘルパーと各コマンド変更を戻せば元に戻る
