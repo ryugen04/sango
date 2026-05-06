@@ -9,7 +9,7 @@ parent_plan: .codex/plans/active/20260426-sango-cli-tui-agent-roadmap.md
 workflow:
   origin_mode: resume_existing_workspace
   execution_intent: autonomous_until_git_boundary
-  safety_domain: codex_config_edit
+  safety_domain: git_finish
 target_root: /home/glaucus03/dev/projects/sango
 allowed_paths:
   - cmd/**
@@ -45,6 +45,7 @@ status_notes:
   - `create` / `switch` / `remove` は必須引数で入口が閉じている
   - `rebase` / `sync` / `verify` は active fallback のみで一覧選択がない
   - 前セッションの hook blocker により plan 修復と learning 記録が未完了
+  - active plan 修復、learning 記録、feedback loop close、`go test ./...`、commit までは完了
 ---
 
 # Original Request
@@ -94,7 +95,7 @@ status_notes:
 
 - [x] `.codex` 更新を確認
 - [x] `go test ./...` を実行
-- [ ] commit / push / PR を完了
+- [ ] push / PR を完了
 
 # Checkpoints
 
@@ -120,7 +121,7 @@ status_notes:
 - [x] hook blocker の learning を `.codex/artifacts/learnings/**` に記録する
 - [x] `fb-20260506-002` を close する `.codex` 更新を行う
 - [x] 変更差分を確認し、必要な検証を再実行する
-- [ ] commit を作成する
+- [x] commit を作成する
 - [ ] branch を push する
 - [ ] PR を作成する
 
