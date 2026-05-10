@@ -40,7 +40,7 @@ sango worktree create feature/auth
 sango worktree create
 ```
 
-全サービスに対してワークツリーを作成する。
+対象サービスに対してワークツリーを作成する。引数なしの対話UIでは、既存の `origin/*` ブランチを選んで同名のローカルブランチとしてcheckoutできる。
 
 オプション:
 
@@ -49,6 +49,16 @@ sango worktree create
 | `--services s1,s2` | 対象サービスを限定 |
 | `--from base-branch` | 分岐元ブランチを指定（デフォルト: main） |
 | `--no-setup` | セットアップコマンドをスキップ |
+
+既定対象サービスは `sango.yaml` で指定できる。
+
+```yaml
+worktree:
+  create:
+    default_services: [api, web]
+```
+
+`default_services` は対話UIの初期選択に使われる。非対話実行で `--services` を省略した場合も、この値が作成対象になる。
 
 作成時の処理:
 1. 各サービスのbare repoから新ブランチでworktreeを作成

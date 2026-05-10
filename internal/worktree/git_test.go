@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-
 // setupBareAndSource はテスト用のベアリポジトリとソースリポジトリをセットアップする
 // ベアリポジトリに初期コミットをプッシュし、そのパスを返す
 func setupBareAndSource(t *testing.T) (bareDir, sourceDir string) {
@@ -109,6 +108,32 @@ func TestBareCloneShallow(t *testing.T) {
 	clonedDir := BareRepoDir(sangoDir, name)
 	if _, err := os.Stat(clonedDir); err != nil {
 		t.Fatalf("クローン先ディレクトリが存在しない: %v", err)
+	}
+}
+
+func TestListRemoteBranches(t *testing.T) {
+	originBare, sourceDir := setupBareAndSource(t)
+	runGit(t, sourceDir, "checkout", "-b", "feature/auth")
+	runGit(t, sourceDir, "push", "origin", "feature/auth")
+
+	sangoDir := t.TempDir()
+	name := "myservice"
+	if err := BareClone(sangoDir, name, originBare, false); err != nil {
+		t.Fatalf("BareClone 失敗: %v", err)
+	}
+
+	branches, err := ListRemoteBranches(sangoDir, name)
+	if err != nil {
+		t.Fatalf("ListRemoteBranches 失敗: %v", err)
+	}
+	want := []string{"origin/feature/auth", "origin/main"}
+	if len(branches) != len(want) {
+		t.Fatalf("branches = %v, want %v", branches, want)
+	}
+	for i := range want {
+		if branches[i] != want[i] {
+			t.Fatalf("branches = %v, want %v", branches, want)
+		}
 	}
 }
 
