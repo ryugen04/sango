@@ -110,6 +110,13 @@ func findProjectContext(start string) (*projectContext, error) {
 	for {
 		candidate := filepath.Join(dir, "sango.yaml")
 		if _, err := os.Stat(candidate); err == nil {
+			if info, err := os.Lstat(candidate); err == nil && info.Mode()&os.ModeSymlink != 0 {
+				resolvedConfig, err := filepath.EvalSymlinks(candidate)
+				if err != nil {
+					return nil, fmt.Errorf("設定ファイルパスの解決に失敗: %w", err)
+				}
+				return loadProjectContext(filepath.Dir(resolvedConfig), resolvedConfig)
+			}
 			return loadProjectContext(dir, candidate)
 		}
 		parent := filepath.Dir(dir)

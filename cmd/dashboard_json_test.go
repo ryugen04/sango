@@ -8,6 +8,7 @@ import (
 
 	"github.com/ryugen04/sango/internal/config"
 	sangoLog "github.com/ryugen04/sango/internal/log"
+	"github.com/ryugen04/sango/internal/service"
 	"github.com/ryugen04/sango/internal/worktree"
 )
 
@@ -33,6 +34,75 @@ func TestResolveProjectContextFindsRootFromNestedDirectory(t *testing.T) {
 	}
 	if ctx.Name != "nested-app" {
 		t.Fatalf("Name = %q, want nested-app", ctx.Name)
+	}
+}
+
+func TestResolveProjectContextUsesSymlinkTargetAsRoot(t *testing.T) {
+	resetCommandGlobals(t)
+
+	root := t.TempDir()
+	configPath := filepath.Join(root, "sango.yaml")
+	data := []byte(`name: symlink-app
+services:
+  web:
+    type: process
+    command: sleep 60
+    port: 3000
+`)
+	if err := os.WriteFile(configPath, data, 0o644); err != nil {
+		t.Fatalf("write root sango.yaml: %v", err)
+	}
+	resolvedConfigPath, err := filepath.EvalSymlinks(configPath)
+	if err != nil {
+		t.Fatalf("resolve root sango.yaml: %v", err)
+	}
+	resolvedRoot := filepath.Dir(resolvedConfigPath)
+
+	ws := &worktree.WorktreeState{
+		Active: "feature/login",
+		Worktrees: map[string]*worktree.WorktreeInfo{
+			"feature/login": {
+				Offset:   200,
+				Services: []string{"web"},
+			},
+		},
+		SharedServices: map[string]*worktree.SharedService{},
+	}
+	if err := ws.Save(filepath.Join(root, ".sango")); err != nil {
+		t.Fatalf("save worktrees.json: %v", err)
+	}
+
+	worktreeDir := filepath.Join(root, "worktrees", "feature", "login")
+	if err := os.MkdirAll(worktreeDir, 0o755); err != nil {
+		t.Fatalf("mkdir worktree: %v", err)
+	}
+	if err := os.Symlink(configPath, filepath.Join(worktreeDir, "sango.yaml")); err != nil {
+		t.Fatalf("symlink sango.yaml: %v", err)
+	}
+	t.Chdir(worktreeDir)
+
+	ctx, err := findProjectContext(worktreeDir)
+	if err != nil {
+		t.Fatalf("findProjectContext: %v", err)
+	}
+	if ctx.Root != resolvedRoot {
+		t.Fatalf("Root = %q, want %q", ctx.Root, resolvedRoot)
+	}
+	if ctx.ConfigPath != resolvedConfigPath {
+		t.Fatalf("ConfigPath = %q, want %q", ctx.ConfigPath, resolvedConfigPath)
+	}
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	orch, err := service.NewOrchestratorWithWorktree(cfg, cfgFile, service.OrchestratorOptions{})
+	if err != nil {
+		t.Fatalf("NewOrchestratorWithWorktree: %v", err)
+	}
+	ports := orch.ResolveServicePorts()
+	if ports["web"] != 3200 {
+		t.Fatalf("web port = %d, want 3200", ports["web"])
 	}
 }
 
