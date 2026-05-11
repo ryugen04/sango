@@ -79,7 +79,7 @@ services:
 	if err := os.Symlink(configPath, filepath.Join(worktreeDir, "sango.yaml")); err != nil {
 		t.Fatalf("symlink sango.yaml: %v", err)
 	}
-	t.Chdir(worktreeDir)
+	chdirForTest(t, worktreeDir)
 
 	ctx, err := findProjectContext(worktreeDir)
 	if err != nil {
@@ -325,4 +325,20 @@ func writeTestSangoYAML(t *testing.T, root, name string) {
 	if err := os.WriteFile(filepath.Join(root, "sango.yaml"), data, 0o644); err != nil {
 		t.Fatalf("write sango.yaml: %v", err)
 	}
+}
+
+func chdirForTest(t *testing.T, dir string) {
+	t.Helper()
+	previous, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir %s: %v", dir, err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(previous); err != nil {
+			t.Fatalf("restore cwd %s: %v", previous, err)
+		}
+	})
 }
