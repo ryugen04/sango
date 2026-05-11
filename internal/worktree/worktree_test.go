@@ -116,8 +116,8 @@ func TestDetectFromPath(t *testing.T) {
 		Active: "ryugen04/feat-200",
 		Worktrees: map[string]*WorktreeInfo{
 			"develop":           {Offset: 0},
-			"ryugen04/feat-100":  {Offset: 1600},
-			"ryugen04/feat-200":  {Offset: 1500},
+			"ryugen04/feat-100": {Offset: 1600},
+			"ryugen04/feat-200": {Offset: 1500},
 		},
 	}
 
@@ -165,7 +165,7 @@ func TestDetectFromPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := detectFromPath(sangoDir, tt.cwd, ws)
+			got := detectFromPath(sangoDir, "", tt.cwd, ws)
 			if got != tt.want {
 				t.Errorf("detectFromPath() = %q, want %q", got, tt.want)
 			}
@@ -173,8 +173,32 @@ func TestDetectFromPath(t *testing.T) {
 	}
 }
 
+func TestDetectFromPath_CustomBaseDir(t *testing.T) {
+	tmpdir := t.TempDir()
+	sangoDir := filepath.Join(tmpdir, ".sango")
+	os.MkdirAll(sangoDir, 0o755)
+
+	ws := &WorktreeState{
+		Active: "main",
+		Worktrees: map[string]*WorktreeInfo{
+			"feature/auth": {Offset: 100},
+			"main":         {Offset: 0},
+		},
+	}
+
+	got := detectFromPath(sangoDir, ".worktrees", filepath.Join(tmpdir, ".worktrees", "feature", "auth", "api"), ws)
+	if got != "feature/auth" {
+		t.Errorf("detectFromPath() = %q, want %q", got, "feature/auth")
+	}
+
+	got = detectFromPath(sangoDir, ".worktrees", filepath.Join(tmpdir, "worktrees", "feature", "auth", "api"), ws)
+	if got != "" {
+		t.Errorf("expected empty outside custom base_dir, got %q", got)
+	}
+}
+
 func TestDetectFromPath_NilState(t *testing.T) {
-	got := detectFromPath("/tmp/.sango", "/tmp/worktrees/foo", nil)
+	got := detectFromPath("/tmp/.sango", "", "/tmp/worktrees/foo", nil)
 	if got != "" {
 		t.Errorf("expected empty for nil state, got %q", got)
 	}
@@ -182,7 +206,7 @@ func TestDetectFromPath_NilState(t *testing.T) {
 
 func TestDetectFromPath_EmptyWorktrees(t *testing.T) {
 	ws := &WorktreeState{Worktrees: map[string]*WorktreeInfo{}}
-	got := detectFromPath("/tmp/.sango", "/tmp/worktrees/foo", ws)
+	got := detectFromPath("/tmp/.sango", "", "/tmp/worktrees/foo", ws)
 	if got != "" {
 		t.Errorf("expected empty for empty worktrees, got %q", got)
 	}

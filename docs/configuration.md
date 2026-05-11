@@ -138,7 +138,7 @@ Git worktreeの管理設定。
 
 ```yaml
 worktree:
-  base_dir: ./worktrees       # ワークツリー配置先
+  base_dir: worktrees         # ワークツリー配置先（未指定時も worktrees）
   auto_setup: true             # 作成時にsetupコマンドを自動実行
   default_branch: main         # デフォルトブランチ名
   create:
@@ -162,6 +162,12 @@ worktree:
     pre_remove:                # ワークツリー削除前フック
       - command: docker compose down
 ```
+
+| キー | 型 | 必須 | 説明 |
+|------|----|------|------|
+| `base_dir` | string | No | ワークツリー配置先。未指定時は `worktrees`。相対パスはプロジェクトルート基準で解決され、`worktree create` の作成先、サービス起動時のパス解決、CWD からの worktree 検出で共通して使われる |
+| `auto_setup` | bool | No | `worktree create` 後にサービスの `setup` を実行する |
+| `default_branch` | string | No | 既定ブランチ。未指定時は `main` |
 
 ### worktree.create
 

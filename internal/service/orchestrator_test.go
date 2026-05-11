@@ -1,9 +1,13 @@
 package service
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/ryugen04/sango/internal/config"
+	"github.com/ryugen04/sango/internal/worktree"
 )
 
 func TestResolveTargets(t *testing.T) {
@@ -137,6 +141,41 @@ func TestResolveActiveWorktree(t *testing.T) {
 	result = ResolveActiveWorktree("/nonexistent/.sango", "")
 	if result != "main" {
 		t.Errorf("expected main, got %s", result)
+	}
+}
+
+func TestResolveActiveWorktreeWithBaseDirDetectsCustomCWD(t *testing.T) {
+	tmpdir := t.TempDir()
+	sangoDir := filepath.Join(tmpdir, ".sango")
+	ws := &worktree.WorktreeState{
+		Active: "main",
+		Worktrees: map[string]*worktree.WorktreeInfo{
+			"feature/auth": {
+				Offset:    100,
+				CreatedAt: time.Now(),
+				Services:  []string{"api"},
+			},
+			"main": {
+				Offset:    0,
+				CreatedAt: time.Now(),
+				Services:  []string{"api"},
+			},
+		},
+		SharedServices: map[string]*worktree.SharedService{},
+	}
+	if err := ws.Save(sangoDir); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	cwd := filepath.Join(tmpdir, ".worktrees", "feature", "auth", "api")
+	if err := os.MkdirAll(cwd, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	t.Chdir(cwd)
+
+	got := ResolveActiveWorktreeWithBaseDir(sangoDir, "", ".worktrees")
+	if got != "feature/auth" {
+		t.Errorf("ResolveActiveWorktreeWithBaseDir() = %q, want %q", got, "feature/auth")
 	}
 }
 

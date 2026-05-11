@@ -51,7 +51,7 @@ func NewOrchestratorWithWorktree(cfg *config.Config, cfgFile string, opts Orches
 			sangoDir = filepath.Join(filepath.Dir(absCfg), ".sango")
 		}
 	}
-	wtName := ResolveActiveWorktree(sangoDir, opts.WorktreeFlag)
+	wtName := ResolveActiveWorktreeWithBaseDir(sangoDir, opts.WorktreeFlag, cfg.Worktree.ResolveBaseDir())
 	wtKey := worktree.ToKey(wtName)
 
 	ws, err := worktree.Load(sangoDir)
@@ -94,6 +94,11 @@ func NewOrchestratorWithWorktree(cfg *config.Config, cfgFile string, opts Orches
 // ResolveActiveWorktree は使用するworktree名を解決する
 // 優先順位: 1. --worktreeフラグ → 2. CWD自動検出 → 3. activeフィールド → 4. "main"
 func ResolveActiveWorktree(sangoDir, worktreeFlag string) string {
+	return ResolveActiveWorktreeWithBaseDir(sangoDir, worktreeFlag, "")
+}
+
+// ResolveActiveWorktreeWithBaseDir は設定済みbase_dirを使って使用するworktree名を解決する
+func ResolveActiveWorktreeWithBaseDir(sangoDir, worktreeFlag, baseDir string) string {
 	if worktreeFlag != "" {
 		return worktreeFlag
 	}
@@ -102,7 +107,7 @@ func ResolveActiveWorktree(sangoDir, worktreeFlag string) string {
 		return "main"
 	}
 	// CWDベースの検出を試行
-	if detected := worktree.DetectFromCWD(sangoDir, ws); detected != "" {
+	if detected := worktree.DetectFromCWD(sangoDir, baseDir, ws); detected != "" {
 		return detected
 	}
 	if ws.Active == "" {

@@ -173,6 +173,7 @@ profiles:
     services: [api, postgres]
 
 worktree:
+  base_dir: worktrees
   default_branch: main
   auto_setup: true
   create:

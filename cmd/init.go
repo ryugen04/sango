@@ -32,6 +32,7 @@ ports:
   range: [3000, 9999]
 
 worktree:
+  base_dir: worktrees
   default_branch: main
   auto_setup: true
   include:

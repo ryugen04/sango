@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/ryugen04/sango/internal/config"
 	sangoLog "github.com/ryugen04/sango/internal/log"
 	"github.com/ryugen04/sango/internal/worktree"
 	"github.com/spf13/cobra"
@@ -43,11 +45,16 @@ var logsCmd = &cobra.Command{
 	Use:   "logs [services...]",
 	Short: "サービスのログを表示する",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		sangoDir, err := currentSangoDir()
+		ctx, err := resolveProjectContext("")
 		if err != nil {
 			return err
 		}
-		wtName := resolveActiveWorktree(sangoDir)
+		cfg, err := config.Load(ctx.ConfigPath)
+		if err != nil {
+			return err
+		}
+		sangoDir := filepath.Join(ctx.Root, ".sango")
+		wtName := resolveActiveWorktreeWithConfig(sangoDir, cfg)
 		wtKey := worktree.ToKey(wtName)
 
 		filter := sangoLog.Filter{
