@@ -146,6 +146,10 @@ func TestResolveActiveWorktree(t *testing.T) {
 
 func TestResolveActiveWorktreeWithBaseDirDetectsCustomCWD(t *testing.T) {
 	tmpdir := t.TempDir()
+	tmpdir, err := filepath.EvalSymlinks(tmpdir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks: %v", err)
+	}
 	sangoDir := filepath.Join(tmpdir, ".sango")
 	ws := &worktree.WorktreeState{
 		Active: "main",
@@ -171,12 +175,28 @@ func TestResolveActiveWorktreeWithBaseDirDetectsCustomCWD(t *testing.T) {
 	if err := os.MkdirAll(cwd, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-	t.Chdir(cwd)
+	chdirForTest(t, cwd)
 
 	got := ResolveActiveWorktreeWithBaseDir(sangoDir, "", ".worktrees")
 	if got != "feature/auth" {
 		t.Errorf("ResolveActiveWorktreeWithBaseDir() = %q, want %q", got, "feature/auth")
 	}
+}
+
+func chdirForTest(t *testing.T, dir string) {
+	t.Helper()
+	previous, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir %s: %v", dir, err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(previous); err != nil {
+			t.Fatalf("restore cwd %s: %v", previous, err)
+		}
+	})
 }
 
 func TestLoadAndValidateConfig(t *testing.T) {
