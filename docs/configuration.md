@@ -141,6 +141,8 @@ worktree:
   base_dir: ./worktrees       # ワークツリー配置先
   auto_setup: true             # 作成時にsetupコマンドを自動実行
   default_branch: main         # デフォルトブランチ名
+  create:
+    default_services: [api]    # worktree create の既定対象サービス
 
   include:
     root:                      # worktreeルートに置く共有ファイル
@@ -160,6 +162,20 @@ worktree:
     pre_remove:                # ワークツリー削除前フック
       - command: docker compose down
 ```
+
+### worktree.create
+
+`worktree create` の既定値を定義する。
+
+```yaml
+worktree:
+  create:
+    default_services: [api, web]
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|---|------|------|
+| `default_services` | []string | No | `worktree create` の既定対象サービス。非対話実行で `--services` 未指定の場合にも使われる |
 
 ---
 

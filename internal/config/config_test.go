@@ -246,6 +246,26 @@ func TestValidateRepoNameReferenceValid(t *testing.T) {
 	}
 }
 
+func TestValidateWorktreeCreateDefaultServices(t *testing.T) {
+	cfg := &Config{
+		Name: "test",
+		Services: map[string]*Service{
+			"api": {Type: "process", Command: "go run ."},
+		},
+		Worktree: WorktreeConfig{
+			Create: WorktreeCreateConfig{DefaultServices: []string{"api"}},
+		},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate failed: %v", err)
+	}
+
+	cfg.Worktree.Create.DefaultServices = []string{"missing"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate should fail for unknown worktree.create.default_services")
+	}
+}
+
 func TestExpandVariablesWithEnvAndHealthcheckCommand(t *testing.T) {
 	cfg := &Config{
 		Name: "test",

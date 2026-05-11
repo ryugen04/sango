@@ -31,11 +31,17 @@ type LogConfig struct {
 
 // WorktreeConfig はワークツリー管理の設定
 type WorktreeConfig struct {
-	BaseDir       string        `yaml:"base_dir"`
-	AutoSetup     bool          `yaml:"auto_setup"`
-	DefaultBranch string        `yaml:"default_branch"`
-	Include       IncludeConfig `yaml:"include"`
-	Hooks         HooksConfig   `yaml:"hooks"`
+	BaseDir       string               `yaml:"base_dir"`
+	AutoSetup     bool                 `yaml:"auto_setup"`
+	DefaultBranch string               `yaml:"default_branch"`
+	Create        WorktreeCreateConfig `yaml:"create"`
+	Include       IncludeConfig        `yaml:"include"`
+	Hooks         HooksConfig          `yaml:"hooks"`
+}
+
+// WorktreeCreateConfig は worktree create の既定値を定義する
+type WorktreeCreateConfig struct {
+	DefaultServices []string `yaml:"default_services"`
 }
 
 // ResolveBaseDir はworktreeのベースディレクトリを返す
@@ -81,31 +87,31 @@ type HookEntry struct {
 
 // Service は個別サービスの定義
 type Service struct {
-	Type         string            `yaml:"type"`
-	Image        string            `yaml:"image"`
-	Port         int               `yaml:"port"`
-	Shared       bool              `yaml:"shared"`
-	DependsOn    []string          `yaml:"depends_on"`
-	WorkingDir   string            `yaml:"working_dir"`
-	Setup        []string          `yaml:"setup"`
-	Command      string            `yaml:"command"`
-	CommandArgs  []string          `yaml:"command_args"`
-	Env          map[string]string `yaml:"env"`
-	EnvFile      string            `yaml:"env_file"`
-	EnvDynamic   map[string]string `yaml:"env_dynamic"`
-	Healthcheck  *Healthcheck      `yaml:"healthcheck"`
-	Restart      string            `yaml:"restart"`
-	RestartDelay string            `yaml:"restart_delay"`
-	MaxRestarts  int               `yaml:"max_restarts"`
-	Volumes      []string          `yaml:"volumes"`
-	Repo          string            `yaml:"repo"`
-	RepoName      string            `yaml:"repo_name"`
-	RepoPath      string            `yaml:"repo_path"`
-	DefaultBranch string            `yaml:"default_branch"`
-	RunOn        []string          `yaml:"run_on"`
-	Troubleshoot []TroubleshootCheck `yaml:"troubleshoot"`
-	Runbook      []RunbookEntry      `yaml:"runbook"`
-	OpenURL      string              `yaml:"open_url"`
+	Type          string              `yaml:"type"`
+	Image         string              `yaml:"image"`
+	Port          int                 `yaml:"port"`
+	Shared        bool                `yaml:"shared"`
+	DependsOn     []string            `yaml:"depends_on"`
+	WorkingDir    string              `yaml:"working_dir"`
+	Setup         []string            `yaml:"setup"`
+	Command       string              `yaml:"command"`
+	CommandArgs   []string            `yaml:"command_args"`
+	Env           map[string]string   `yaml:"env"`
+	EnvFile       string              `yaml:"env_file"`
+	EnvDynamic    map[string]string   `yaml:"env_dynamic"`
+	Healthcheck   *Healthcheck        `yaml:"healthcheck"`
+	Restart       string              `yaml:"restart"`
+	RestartDelay  string              `yaml:"restart_delay"`
+	MaxRestarts   int                 `yaml:"max_restarts"`
+	Volumes       []string            `yaml:"volumes"`
+	Repo          string              `yaml:"repo"`
+	RepoName      string              `yaml:"repo_name"`
+	RepoPath      string              `yaml:"repo_path"`
+	DefaultBranch string              `yaml:"default_branch"`
+	RunOn         []string            `yaml:"run_on"`
+	Troubleshoot  []TroubleshootCheck `yaml:"troubleshoot"`
+	Runbook       []RunbookEntry      `yaml:"runbook"`
+	OpenURL       string              `yaml:"open_url"`
 }
 
 // Healthcheck はヘルスチェック設定
@@ -267,6 +273,12 @@ func (c *Config) Validate() error {
 			if _, exists := c.Services[dep]; !exists {
 				return fmt.Errorf("サービス %q: depends_onに未定義のサービス %q が指定されています", name, dep)
 			}
+		}
+	}
+
+	for _, name := range c.Worktree.Create.DefaultServices {
+		if _, exists := c.Services[name]; !exists {
+			return fmt.Errorf("worktree.create.default_servicesに未定義のサービス %q が指定されています", name)
 		}
 	}
 

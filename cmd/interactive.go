@@ -6,12 +6,51 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/ryugen04/sango/internal/config"
 	"github.com/ryugen04/sango/internal/service"
 	"github.com/ryugen04/sango/internal/worktree"
 )
 
 var stdinIsTerminal = isTerminal
+
+func sangoPromptTheme() *huh.Theme {
+	t := huh.ThemeBase()
+	var (
+		primary = lipgloss.AdaptiveColor{Light: "#006D75", Dark: "#5CCFE6"}
+		success = lipgloss.AdaptiveColor{Light: "#007A5A", Dark: "#8BD49C"}
+		muted   = lipgloss.AdaptiveColor{Light: "242", Dark: "244"}
+		text    = lipgloss.AdaptiveColor{Light: "235", Dark: "252"}
+		err     = lipgloss.AdaptiveColor{Light: "#B42318", Dark: "#FF7A7A"}
+	)
+
+	t.Focused.Base = t.Focused.Base.BorderForeground(primary)
+	t.Focused.Title = t.Focused.Title.Foreground(primary).Bold(true)
+	t.Focused.Description = t.Focused.Description.Foreground(muted)
+	t.Focused.ErrorIndicator = t.Focused.ErrorIndicator.Foreground(err)
+	t.Focused.ErrorMessage = t.Focused.ErrorMessage.Foreground(err)
+	t.Focused.SelectSelector = t.Focused.SelectSelector.Foreground(primary)
+	t.Focused.MultiSelectSelector = t.Focused.MultiSelectSelector.Foreground(primary)
+	t.Focused.Option = t.Focused.Option.Foreground(text)
+	t.Focused.SelectedOption = t.Focused.SelectedOption.Foreground(success)
+	t.Focused.SelectedPrefix = lipgloss.NewStyle().Foreground(success).SetString("✓ ")
+	t.Focused.UnselectedOption = t.Focused.UnselectedOption.Foreground(text)
+	t.Focused.UnselectedPrefix = lipgloss.NewStyle().Foreground(muted).SetString("• ")
+	t.Focused.FocusedButton = t.Focused.FocusedButton.Foreground(lipgloss.Color("0")).Background(primary)
+	t.Focused.BlurredButton = t.Focused.BlurredButton.Foreground(text).Background(lipgloss.AdaptiveColor{Light: "252", Dark: "237"})
+	t.Focused.TextInput.Cursor = t.Focused.TextInput.Cursor.Foreground(primary)
+	t.Focused.TextInput.Placeholder = t.Focused.TextInput.Placeholder.Foreground(muted)
+	t.Focused.TextInput.Prompt = t.Focused.TextInput.Prompt.Foreground(primary)
+
+	t.Blurred = t.Focused
+	t.Blurred.Base = t.Focused.Base.BorderStyle(lipgloss.HiddenBorder())
+	t.Blurred.NextIndicator = lipgloss.NewStyle()
+	t.Blurred.PrevIndicator = lipgloss.NewStyle()
+	t.Blurred.MultiSelectSelector = lipgloss.NewStyle().SetString("  ")
+	t.Group.Title = t.Focused.Title
+	t.Group.Description = t.Focused.Description
+	return t
+}
 
 var promptWorktreeNameInput = func() (string, error) {
 	var branch string
@@ -28,7 +67,7 @@ var promptWorktreeNameInput = func() (string, error) {
 					return nil
 				}),
 		),
-	)
+	).WithTheme(sangoPromptTheme())
 	if err := form.Run(); err != nil {
 		return "", fmt.Errorf("worktree 名入力がキャンセルされました: %w", err)
 	}
@@ -57,7 +96,7 @@ var promptExistingWorktreeSelection = func(title string, names []string, active 
 				Options(options...).
 				Value(&selected),
 		),
-	)
+	).WithTheme(sangoPromptTheme())
 	if err := form.Run(); err != nil {
 		return "", fmt.Errorf("worktree 選択がキャンセルされました: %w", err)
 	}
@@ -78,7 +117,7 @@ var promptCreateBaseBranch = func(defaultBranch string) (string, error) {
 				Options(options...).
 				Value(&choice),
 		),
-	)
+	).WithTheme(sangoPromptTheme())
 	if err := form.Run(); err != nil {
 		return "", fmt.Errorf("分岐元ブランチ選択がキャンセルされました: %w", err)
 	}
@@ -100,11 +139,42 @@ var promptCreateBaseBranch = func(defaultBranch string) (string, error) {
 					return nil
 				}),
 		),
-	)
+	).WithTheme(sangoPromptTheme())
 	if err := customForm.Run(); err != nil {
 		return "", fmt.Errorf("分岐元ブランチ入力がキャンセルされました: %w", err)
 	}
 	return strings.TrimSpace(custom), nil
+}
+
+var promptCreateBranchSelection = func(remoteBranches []string) (string, error) {
+	if len(remoteBranches) == 0 {
+		return promptWorktreeNameInput()
+	}
+
+	const customChoice = "__custom__"
+	options := make([]huh.Option[string], 0, len(remoteBranches)+1)
+	options = append(options, huh.NewOption("新しい worktree 名を入力", customChoice).Selected(true))
+	for _, branch := range remoteBranches {
+		options = append(options, huh.NewOption(fmt.Sprintf("%s をcheckout", branch), branch))
+	}
+
+	var choice string
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("作成する worktree を選択してください").
+				Description("既存のリモートブランチ、または新しい名前を選べます").
+				Options(options...).
+				Value(&choice),
+		),
+	).WithTheme(sangoPromptTheme())
+	if err := form.Run(); err != nil {
+		return "", fmt.Errorf("worktree 選択がキャンセルされました: %w", err)
+	}
+	if choice != customChoice {
+		return choice, nil
+	}
+	return promptWorktreeNameInput()
 }
 
 var promptCreateRunSetup = func(autoSetup bool) (bool, error) {
@@ -124,7 +194,7 @@ var promptCreateRunSetup = func(autoSetup bool) (bool, error) {
 				Negative("スキップする").
 				Value(&runSetup),
 		),
-	)
+	).WithTheme(sangoPromptTheme())
 	if err := form.Run(); err != nil {
 		return false, fmt.Errorf("セットアップ設定がキャンセルされました: %w", err)
 	}
@@ -277,14 +347,22 @@ func resolveWorktreeNameArg(args []string, ws *worktree.WorktreeState, fallback 
 	return promptExistingWorktreeSelection(promptTitle, listWorktreeNames(ws), fallback)
 }
 
-func resolveWorktreeCreateBranch(args []string) (string, error) {
+func resolveWorktreeCreateBranch(args []string, remoteBranches []string) (string, error) {
 	if len(args) > 0 {
 		return args[0], nil
 	}
 	if !stdinIsTerminal() {
 		return "", fmt.Errorf("非インタラクティブ環境では worktree 名を指定してください")
 	}
-	return promptWorktreeNameInput()
+	selected, err := promptCreateBranchSelection(remoteBranches)
+	if err != nil {
+		return "", err
+	}
+	if strings.HasPrefix(selected, "origin/") {
+		wtCreateFrom = selected
+		return strings.TrimPrefix(selected, "origin/"), nil
+	}
+	return selected, nil
 }
 
 func maybePromptWorktreeCreateOptions(cfg *config.Config, branchPrompted bool, fromChanged, noSetupChanged bool) error {
@@ -292,7 +370,7 @@ func maybePromptWorktreeCreateOptions(cfg *config.Config, branchPrompted bool, f
 		return nil
 	}
 
-	if !fromChanged {
+	if !fromChanged && wtCreateFrom == "" {
 		defaultBranch := cfg.Worktree.DefaultBranch
 		if defaultBranch == "" {
 			defaultBranch = "main"

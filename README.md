@@ -78,7 +78,7 @@ sango down
 | コマンド | 説明 |
 |---------|------|
 | `sango clone [--shallow]` | リポジトリをbare clone＆初期worktree作成 |
-| `sango worktree create [branch]` | ワークツリーを作成。未指定時は対話入力 |
+| `sango worktree create [branch]` | ワークツリーを作成。未指定時は対話で新規名または既存リモートブランチを選択 |
 | `sango worktree list` | ワークツリー一覧 |
 | `sango worktree status [--json]` | 全ワークツリーの状態を表示 |
 | `sango worktree switch [branch]` | アクティブワークツリーを切替。未指定時は選択 |
@@ -175,6 +175,8 @@ profiles:
 worktree:
   default_branch: main
   auto_setup: true
+  create:
+    default_services: [api]
   include:
     root: []
 

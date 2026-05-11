@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -69,6 +70,42 @@ func FetchOrigin(bareDir string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// ListRemoteBranches はベアリポジトリ内のブランチ一覧を origin/* 表示で返す
+func ListRemoteBranches(sangoDir, name string) ([]string, error) {
+	bareDir := BareRepoDir(sangoDir, name)
+	cmd := exec.Command("git", "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes/origin")
+	cmd.Dir = bareDir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git remote branch list 失敗 (%s): %w", name, err)
+	}
+
+	seen := make(map[string]bool)
+	var branches []string
+	for _, line := range strings.Split(string(out), "\n") {
+		ref := strings.TrimSpace(line)
+		if ref == "" || ref == "refs/remotes/origin/HEAD" {
+			continue
+		}
+		branch := ""
+		switch {
+		case strings.HasPrefix(ref, "refs/remotes/origin/"):
+			branch = "origin/" + strings.TrimPrefix(ref, "refs/remotes/origin/")
+		case strings.HasPrefix(ref, "refs/heads/"):
+			branch = "origin/" + strings.TrimPrefix(ref, "refs/heads/")
+		default:
+			continue
+		}
+		if seen[branch] {
+			continue
+		}
+		seen[branch] = true
+		branches = append(branches, branch)
+	}
+	sort.Strings(branches)
+	return branches, nil
 }
 
 // HasUncommittedChanges はworktreeディレクトリに未コミット変更があるか確認する

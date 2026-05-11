@@ -107,3 +107,85 @@ func TestResolveUpTargetsInteractiveRepos(t *testing.T) {
 		t.Fatalf("defaultPorts = false, want true")
 	}
 }
+
+func TestResolveWorktreeServicesUsesDefaultServicesNonInteractive(t *testing.T) {
+	originalTerminal := stdinIsTerminal
+	t.Cleanup(func() {
+		stdinIsTerminal = originalTerminal
+	})
+	stdinIsTerminal = func() bool { return false }
+
+	cfg := &config.Config{
+		Services: map[string]*config.Service{
+			"repo-a": {Type: "process", Repo: "git@example.com/repo-a.git"},
+			"api":    {Type: "process", RepoName: "repo-a", Command: "go run ."},
+			"worker": {Type: "process", RepoName: "repo-a", Command: "go run worker"},
+			"db":     {Type: "docker", Shared: true, Image: "postgres:16"},
+		},
+		Worktree: config.WorktreeConfig{
+			Create: config.WorktreeCreateConfig{DefaultServices: []string{"api"}},
+		},
+	}
+
+	got, err := resolveWorktreeServices(cfg, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"api", "db", "repo-a", "worker"}
+	if len(got) != len(want) {
+		t.Fatalf("got = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got = %v, want %v", got, want)
+		}
+	}
+}
+
+func TestDefaultSelectedRepos(t *testing.T) {
+	cfg := &config.Config{
+		Services: map[string]*config.Service{
+			"repo-a": {Type: "process", Repo: "git@example.com/repo-a.git"},
+			"api":    {Type: "process", RepoName: "repo-a", Command: "go run ."},
+			"repo-b": {Type: "process", Repo: "git@example.com/repo-b.git"},
+		},
+		Worktree: config.WorktreeConfig{
+			Create: config.WorktreeCreateConfig{DefaultServices: []string{"api", "repo-b"}},
+		},
+	}
+
+	got := defaultSelectedRepos(cfg)
+	if !got["repo-a"] || !got["repo-b"] || len(got) != 2 {
+		t.Fatalf("defaultSelectedRepos = %#v, want repo-a and repo-b", got)
+	}
+}
+
+func TestResolveWorktreeCreateBranchRemoteSelection(t *testing.T) {
+	originalTerminal := stdinIsTerminal
+	originalPrompt := promptCreateBranchSelection
+	originalFrom := wtCreateFrom
+	t.Cleanup(func() {
+		stdinIsTerminal = originalTerminal
+		promptCreateBranchSelection = originalPrompt
+		wtCreateFrom = originalFrom
+	})
+	stdinIsTerminal = func() bool { return true }
+	wtCreateFrom = ""
+	promptCreateBranchSelection = func(remoteBranches []string) (string, error) {
+		if len(remoteBranches) != 1 || remoteBranches[0] != "origin/feature/auth" {
+			t.Fatalf("remoteBranches = %v, want [origin/feature/auth]", remoteBranches)
+		}
+		return "origin/feature/auth", nil
+	}
+
+	branch, err := resolveWorktreeCreateBranch(nil, []string{"origin/feature/auth"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if branch != "feature/auth" {
+		t.Fatalf("branch = %q, want feature/auth", branch)
+	}
+	if wtCreateFrom != "origin/feature/auth" {
+		t.Fatalf("wtCreateFrom = %q, want origin/feature/auth", wtCreateFrom)
+	}
+}

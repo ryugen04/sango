@@ -29,14 +29,19 @@ var worktreeCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		branch, err := resolveWorktreeCreateBranch(args)
+		targetServices, err := resolveWorktreeServices(cfg, wtCreateServices)
+		if err != nil {
+			return err
+		}
+		remoteBranches := collectCommonRemoteBranches(worktree.DefaultDir(), cfg, targetServices)
+		branch, err := resolveWorktreeCreateBranch(args, remoteBranches)
 		if err != nil {
 			return err
 		}
 		if err := maybePromptWorktreeCreateOptions(cfg, len(args) == 0, cmd.Flags().Changed("from"), cmd.Flags().Changed("no-setup")); err != nil {
 			return err
 		}
-		return runWorktreeCreate(cfg, branch)
+		return runWorktreeCreate(cfg, branch, targetServices)
 	},
 }
 
@@ -47,7 +52,7 @@ func init() {
 	worktreeCmd.AddCommand(worktreeCreateCmd)
 }
 
-func runWorktreeCreate(cfg *config.Config, branch string) error {
+func runWorktreeCreate(cfg *config.Config, branch string, targetServices []string) error {
 	sangoDir := worktree.DefaultDir()
 
 	// ロック取得
@@ -73,12 +78,6 @@ func runWorktreeCreate(cfg *config.Config, branch string) error {
 		baseOffset = 100
 	}
 	offset := ws.AllocateOffset(baseOffset)
-
-	// 対象サービスを決定
-	targetServices, err := resolveWorktreeServices(cfg, wtCreateServices)
-	if err != nil {
-		return err
-	}
 
 	// グローバルベースブランチ
 	globalBaseBranch := wtCreateFrom
@@ -271,12 +270,16 @@ func reposToServices(cfg *config.Config, selectedRepos []string) []string {
 func resolveWorktreeServices(cfg *config.Config, servicesFlag string) ([]string, error) {
 	// --services フラグが指定された場合はそのまま返す
 	if servicesFlag != "" {
-		return strings.Split(servicesFlag, ","), nil
+		return splitServiceList(servicesFlag), nil
+	}
+
+	if len(cfg.Worktree.Create.DefaultServices) > 0 && !stdinIsTerminal() {
+		return resolveDefaultWorktreeServices(cfg), nil
 	}
 
 	// 非インタラクティブ環境ではエラーにする
-	if !isTerminal() {
-		return nil, fmt.Errorf("非インタラクティブ環境では --services フラグを指定してください")
+	if !stdinIsTerminal() {
+		return nil, fmt.Errorf("非インタラクティブ環境では --services フラグ、または worktree.create.default_services を指定してください")
 	}
 
 	// インタラクティブにリポジトリを選択
@@ -290,7 +293,8 @@ func resolveWorktreeServices(cfg *config.Config, servicesFlag string) ([]string,
 		return names, nil
 	}
 
-	// 選択肢を構築（デフォルトで全リポジトリを選択状態）
+	defaultRepos := defaultSelectedRepos(cfg)
+
 	var options []huh.Option[string]
 	for _, ri := range repos {
 		desc := ri.Name
@@ -299,7 +303,8 @@ func resolveWorktreeServices(cfg *config.Config, servicesFlag string) ([]string,
 		} else {
 			desc = fmt.Sprintf("%s (サーバーなし)", ri.Name)
 		}
-		options = append(options, huh.NewOption(desc, ri.Name).Selected(true))
+		selected := len(defaultRepos) == 0 || defaultRepos[ri.Name]
+		options = append(options, huh.NewOption(desc, ri.Name).Selected(selected))
 	}
 
 	var selectedRepos []string
@@ -310,7 +315,7 @@ func resolveWorktreeServices(cfg *config.Config, servicesFlag string) ([]string,
 				Options(options...).
 				Value(&selectedRepos),
 		),
-	)
+	).WithTheme(sangoPromptTheme())
 
 	if err := form.Run(); err != nil {
 		return nil, fmt.Errorf("リポジトリ選択がキャンセルされました: %w", err)
@@ -321,6 +326,138 @@ func resolveWorktreeServices(cfg *config.Config, servicesFlag string) ([]string,
 	}
 
 	return reposToServices(cfg, selectedRepos), nil
+}
+
+func splitServiceList(raw string) []string {
+	parts := strings.Split(raw, ",")
+	services := make([]string, 0, len(parts))
+	for _, part := range parts {
+		name := strings.TrimSpace(part)
+		if name != "" {
+			services = append(services, name)
+		}
+	}
+	return services
+}
+
+func resolveDefaultWorktreeServices(cfg *config.Config) []string {
+	defaults := cfg.Worktree.Create.DefaultServices
+	if len(defaults) == 0 {
+		return nil
+	}
+
+	selectedRepos := make([]string, 0, len(defaults))
+	extra := make(map[string]bool)
+	for _, name := range defaults {
+		svc := cfg.Services[name]
+		if svc == nil {
+			continue
+		}
+		switch {
+		case svc.RepoName != "":
+			selectedRepos = append(selectedRepos, svc.RepoName)
+		case svc.Repo != "":
+			selectedRepos = append(selectedRepos, name)
+		default:
+			extra[name] = true
+		}
+	}
+
+	resultSet := make(map[string]bool)
+	for _, name := range reposToServices(cfg, selectedRepos) {
+		resultSet[name] = true
+	}
+	for name := range extra {
+		resultSet[name] = true
+	}
+
+	result := make([]string, 0, len(resultSet))
+	for name := range resultSet {
+		result = append(result, name)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func defaultSelectedRepos(cfg *config.Config) map[string]bool {
+	if len(cfg.Worktree.Create.DefaultServices) == 0 {
+		return nil
+	}
+	selected := make(map[string]bool)
+	for _, name := range cfg.Worktree.Create.DefaultServices {
+		svc := cfg.Services[name]
+		if svc == nil {
+			continue
+		}
+		if svc.RepoName != "" {
+			selected[svc.RepoName] = true
+			continue
+		}
+		if svc.Repo != "" {
+			selected[name] = true
+		}
+	}
+	return selected
+}
+
+func collectCommonRemoteBranches(sangoDir string, cfg *config.Config, services []string) []string {
+	repoNames := repoServicesFromTargets(cfg, services)
+	if len(repoNames) == 0 {
+		return nil
+	}
+
+	var common map[string]bool
+	for _, name := range repoNames {
+		branches, err := worktree.ListRemoteBranches(sangoDir, name)
+		if err != nil {
+			return nil
+		}
+		current := make(map[string]bool, len(branches))
+		for _, branch := range branches {
+			current[branch] = true
+		}
+		if common == nil {
+			common = current
+			continue
+		}
+		for branch := range common {
+			if !current[branch] {
+				delete(common, branch)
+			}
+		}
+	}
+
+	branches := make([]string, 0, len(common))
+	for branch := range common {
+		branches = append(branches, branch)
+	}
+	sort.Strings(branches)
+	return branches
+}
+
+func repoServicesFromTargets(cfg *config.Config, services []string) []string {
+	seen := make(map[string]bool)
+	for _, name := range services {
+		svc := cfg.Services[name]
+		if svc == nil {
+			continue
+		}
+		repoName := ""
+		if svc.Repo != "" {
+			repoName = name
+		} else if svc.RepoName != "" {
+			repoName = svc.RepoName
+		}
+		if repoName != "" {
+			seen[repoName] = true
+		}
+	}
+	repos := make([]string, 0, len(seen))
+	for name := range seen {
+		repos = append(repos, name)
+	}
+	sort.Strings(repos)
+	return repos
 }
 
 // isTerminal は標準入力がターミナルかどうかを判定する
