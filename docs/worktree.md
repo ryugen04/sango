@@ -54,9 +54,12 @@ sango worktree create
 
 ```yaml
 worktree:
+  base_dir: worktrees
   create:
     default_services: [api, web]
 ```
+
+`base_dir` はワークツリー配置先で、未指定時の既定値は `worktrees`。`.worktrees` などに変更した場合、`worktree create` の作成先、サービス起動時のパス解決、ワークツリー配下で実行したときの CWD 検出はすべてその値を基準にする。相対パスはプロジェクトルート基準。
 
 `default_services` は対話UIの初期選択に使われる。非対話実行で `--services` を省略した場合も、この値が作成対象になる。
 

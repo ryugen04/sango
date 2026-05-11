@@ -29,7 +29,7 @@ var includeRefreshCmd = &cobra.Command{
 
 		wtName := includeRefreshWorktree
 		if wtName == "" {
-			wtName, err = resolveWorktreeNameArg(nil, ws, service.ResolveActiveWorktree(sangoDir, worktreeFlag), "再展開するワークツリーを選択してください")
+			wtName, err = resolveWorktreeNameArg(nil, ws, service.ResolveActiveWorktreeWithBaseDir(sangoDir, worktreeFlag, cfg.Worktree.ResolveBaseDir()), "再展開するワークツリーを選択してください")
 			if err != nil {
 				return err
 			}

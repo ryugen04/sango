@@ -126,7 +126,7 @@ func collectDoctorResults() ([]doctor.CheckResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	wtName := service.ResolveActiveWorktree(sangoDir, worktreeFlag)
+	wtName := service.ResolveActiveWorktreeWithBaseDir(sangoDir, worktreeFlag, cfg.Worktree.ResolveBaseDir())
 	orch, orchErr := service.NewOrchestratorWithWorktree(cfg, cfgFile, service.OrchestratorOptions{WorktreeFlag: worktreeFlag})
 	if orchErr == nil {
 		ports := orch.ResolveServicePorts()

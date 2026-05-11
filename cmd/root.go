@@ -46,6 +46,10 @@ func resolveActiveWorktree(sangoDir string) string {
 	return service.ResolveActiveWorktree(sangoDir, worktreeFlag)
 }
 
+func resolveActiveWorktreeWithConfig(sangoDir string, cfg *config.Config) string {
+	return service.ResolveActiveWorktreeWithBaseDir(sangoDir, worktreeFlag, cfg.Worktree.ResolveBaseDir())
+}
+
 // buildDAG は設定からDAGを構築する
 func buildDAG(cfg *config.Config) *dag.DAG {
 	return service.BuildDAG(cfg)

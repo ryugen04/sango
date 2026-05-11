@@ -123,19 +123,21 @@ func (s *WorktreeState) AllocateOffset(baseOffset int) int {
 	return offset
 }
 
+const defaultBaseDir = "worktrees"
+
 // DetectFromCWD はCWDからworktree名を自動検出する。
 // CWDがworktreeディレクトリ配下にあれば対応するworktree名を返す。
 // 検出できなければ空文字列を返す。
-func DetectFromCWD(sangoDir string, ws *WorktreeState) string {
+func DetectFromCWD(sangoDir, baseDir string, ws *WorktreeState) string {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return ""
 	}
-	return detectFromPath(sangoDir, cwd, ws)
+	return detectFromPath(sangoDir, baseDir, cwd, ws)
 }
 
 // detectFromPath はCWDベースのworktree検出の内部実装（テスト可能）
-func detectFromPath(sangoDir, cwd string, ws *WorktreeState) string {
+func detectFromPath(sangoDir, baseDir, cwd string, ws *WorktreeState) string {
 	if ws == nil || len(ws.Worktrees) == 0 {
 		return ""
 	}
@@ -143,13 +145,16 @@ func detectFromPath(sangoDir, cwd string, ws *WorktreeState) string {
 	// sangoDirの親 = プロジェクトルート
 	projectRoot := filepath.Dir(sangoDir)
 
-	// worktreeベースディレクトリの絶対パスを構築
-	// sango.yamlのbase_dirはここでは参照できないのでデフォルト "worktrees" を使用
-	// （DefaultDirがsangoDirを返す時点でプロジェクトルートは確定している）
-	baseDir := filepath.Join(projectRoot, "worktrees")
+	if baseDir == "" {
+		baseDir = defaultBaseDir
+	}
 
 	// 絶対パスに正規化
-	absBase, err := filepath.Abs(baseDir)
+	resolvedBaseDir := baseDir
+	if !filepath.IsAbs(resolvedBaseDir) {
+		resolvedBaseDir = filepath.Join(projectRoot, resolvedBaseDir)
+	}
+	absBase, err := filepath.Abs(resolvedBaseDir)
 	if err != nil {
 		return ""
 	}
