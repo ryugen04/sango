@@ -14,6 +14,7 @@ type PostProcessOptions struct {
 	SkipIncludes bool
 	SkipSetup    bool
 	SkipHooks    bool
+	Quiet        bool
 }
 
 // PostProcessResult は後処理の結果
@@ -51,13 +52,27 @@ func RunPostProcess(cfg *config.Config, sangoDir string, wtName string, services
 			}
 			svcDir := filepath.Join(wtDir, dirName)
 			for _, setupCmd := range svc.Setup {
-				fmt.Fprintf(os.Stderr, "[sango] setup (%s): %s\n", svcName, setupCmd)
-				c := exec.Command("sh", "-c", setupCmd)
-				c.Dir = svcDir
-				c.Stdout = os.Stdout
-				c.Stderr = os.Stderr
-				if err := c.Run(); err != nil {
-					result.SetupErrors = append(result.SetupErrors, fmt.Errorf("%s: %s: %w", svcName, setupCmd, err))
+				if opts.Quiet {
+					fmt.Fprintf(os.Stderr, "[sango] setup: %s\n", svcName)
+					c := exec.Command("sh", "-c", setupCmd)
+					c.Dir = svcDir
+					out, err := c.CombinedOutput()
+					if err != nil {
+						errText := fmt.Sprintf("%s: %s: %v", svcName, setupCmd, err)
+						if len(out) > 0 {
+							errText += "\n" + string(out)
+						}
+						result.SetupErrors = append(result.SetupErrors, fmt.Errorf("%s", errText))
+					}
+				} else {
+					fmt.Fprintf(os.Stderr, "[sango] setup (%s): %s\n", svcName, setupCmd)
+					c := exec.Command("sh", "-c", setupCmd)
+					c.Dir = svcDir
+					c.Stdout = os.Stdout
+					c.Stderr = os.Stderr
+					if err := c.Run(); err != nil {
+						result.SetupErrors = append(result.SetupErrors, fmt.Errorf("%s: %s: %w", svcName, setupCmd, err))
+					}
 				}
 			}
 		}
@@ -65,7 +80,7 @@ func RunPostProcess(cfg *config.Config, sangoDir string, wtName string, services
 
 	// 3. Hooks実行
 	if !opts.SkipHooks && len(cfg.Worktree.Hooks.PostCreate) > 0 {
-		if err := RunHooks(cfg.Worktree.Hooks.PostCreate, wtDir, services); err != nil {
+		if err := RunHooksWithOptions(cfg.Worktree.Hooks.PostCreate, wtDir, services, HookRunOptions{Quiet: opts.Quiet}); err != nil {
 			result.HookErrors = append(result.HookErrors, err)
 		}
 	}

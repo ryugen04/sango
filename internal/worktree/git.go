@@ -2,7 +2,6 @@ package worktree
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -100,9 +99,11 @@ func WorktreeAddNewBranch(sangoDir, name, worktreePath, newBranch, baseBranch st
 func FetchOrigin(bareDir string) error {
 	cmd := exec.Command("git", "fetch", "origin")
 	cmd.Dir = bareDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git fetch origin 失敗 (%s): %w\n%s", bareDir, err, out)
+	}
+	return nil
 }
 
 // ListRemoteBranches はベアリポジトリ内のブランチ一覧を origin/* 表示で返す
