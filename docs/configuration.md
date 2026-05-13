@@ -177,11 +177,13 @@ worktree:
 worktree:
   create:
     default_services: [api, web]
+    auto_fetch: true
 ```
 
 | フィールド | 型 | 必須 | 説明 |
 |-----------|---|------|------|
 | `default_services` | []string | No | `worktree create` の既定対象サービス。非対話実行で `--services` 未指定の場合にも使われる |
+| `auto_fetch` | bool | No | `worktree create` のブランチ候補表示前に対象リポジトリを fetch する |
 
 ---
 

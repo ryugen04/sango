@@ -53,21 +53,25 @@ func sangoPromptTheme() *huh.Theme {
 }
 
 var promptWorktreeNameInput = func() (string, error) {
+	return promptWorktreeNameInputWithDescription("")
+}
+
+func promptWorktreeNameInputWithDescription(description string) (string, error) {
 	var branch string
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("作成する worktree 名を入力してください").
-				Placeholder("feature/my-branch").
-				Value(&branch).
-				Validate(func(value string) error {
-					if strings.TrimSpace(value) == "" {
-						return fmt.Errorf("worktree 名は必須です")
-					}
-					return nil
-				}),
-		),
-	).WithTheme(sangoPromptTheme())
+	input := huh.NewInput().
+		Title("作成する worktree 名を入力してください").
+		Placeholder("feature/my-branch").
+		Value(&branch).
+		Validate(func(value string) error {
+			if strings.TrimSpace(value) == "" {
+				return fmt.Errorf("worktree 名は必須です")
+			}
+			return nil
+		})
+	if description != "" {
+		input = input.Description(description)
+	}
+	form := huh.NewForm(huh.NewGroup(input)).WithTheme(sangoPromptTheme())
 	if err := form.Run(); err != nil {
 		return "", fmt.Errorf("worktree 名入力がキャンセルされました: %w", err)
 	}
@@ -148,12 +152,45 @@ var promptCreateBaseBranch = func(defaultBranch string) (string, error) {
 
 var promptCreateBranchSelection = func(remoteBranches []string) (string, error) {
 	if len(remoteBranches) == 0 {
-		return promptWorktreeNameInput()
+		return promptWorktreeNameInputWithDescription("リモートブランチ候補が見つかりません。bare cache が古い場合は --fetch または worktree.create.auto_fetch: true を使ってください。既存ブランチ名を直接入力することもできます。")
 	}
 
 	const customChoice = "__custom__"
+	const searchChoice = "__search__"
+	candidates := remoteBranches
+	title := "作成する worktree を選択してください"
+	description := "既存のリモートブランチ、または新しい名前を選べます。そのまま入力して候補を絞り込めます"
+
+	for {
+		choice, err := promptCreateBranchSelectionOnce(title, description, candidates, searchChoice, customChoice)
+		if err != nil {
+			return "", err
+		}
+		switch choice {
+		case customChoice:
+			return promptWorktreeNameInput()
+		case searchChoice:
+			query, err := promptCreateBranchSearchQuery()
+			if err != nil {
+				return "", err
+			}
+			matches := fuzzyFilterRemoteBranches(remoteBranches, query)
+			if len(matches) == 0 {
+				return "", fmt.Errorf("ブランチ候補 %q が見つかりません。bare cache が古い場合は --fetch または worktree.create.auto_fetch: true を使って再実行してください。remote に存在しない場合はブランチ名を直接指定して新規作成できます", query)
+			}
+			candidates = matches
+			title = fmt.Sprintf("%q の検索結果から選択してください", query)
+			description = "検索結果を表示しています。さらに入力して候補を絞り込めます"
+		default:
+			return choice, nil
+		}
+	}
+}
+
+func promptCreateBranchSelectionOnce(title, description string, remoteBranches []string, searchChoice, customChoice string) (string, error) {
 	options := make([]huh.Option[string], 0, len(remoteBranches)+1)
 	options = append(options, huh.NewOption("新しい worktree 名を入力", customChoice).Selected(true))
+	options = append(options, huh.NewOption("ブランチ候補を検索して絞り込む", searchChoice))
 	for _, branch := range remoteBranches {
 		options = append(options, huh.NewOption(fmt.Sprintf("%s をcheckout", branch), branch))
 	}
@@ -162,8 +199,10 @@ var promptCreateBranchSelection = func(remoteBranches []string) (string, error) 
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().
-				Title("作成する worktree を選択してください").
-				Description("既存のリモートブランチ、または新しい名前を選べます").
+				Title(title).
+				Description(description).
+				Filtering(true).
+				Height(15).
 				Options(options...).
 				Value(&choice),
 		),
@@ -171,10 +210,30 @@ var promptCreateBranchSelection = func(remoteBranches []string) (string, error) 
 	if err := form.Run(); err != nil {
 		return "", fmt.Errorf("worktree 選択がキャンセルされました: %w", err)
 	}
-	if choice != customChoice {
-		return choice, nil
+	return choice, nil
+}
+
+func promptCreateBranchSearchQuery() (string, error) {
+	var query string
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("ブランチ候補の検索語を入力してください").
+				Placeholder("user ticket keyword").
+				Description("prefix、チケット番号、ブランチ名の一部で検索できます").
+				Value(&query).
+				Validate(func(value string) error {
+					if strings.TrimSpace(value) == "" {
+						return fmt.Errorf("検索語は必須です")
+					}
+					return nil
+				}),
+		),
+	).WithTheme(sangoPromptTheme())
+	if err := form.Run(); err != nil {
+		return "", fmt.Errorf("ブランチ候補検索がキャンセルされました: %w", err)
 	}
-	return promptWorktreeNameInput()
+	return strings.TrimSpace(query), nil
 }
 
 var promptCreateRunSetup = func(autoSetup bool) (bool, error) {
@@ -393,6 +452,81 @@ func maybePromptWorktreeCreateOptions(cfg *config.Config, branchPrompted bool, f
 	}
 
 	return nil
+}
+
+func fuzzyFilterRemoteBranches(branches []string, query string) []string {
+	query = normalizeBranchSearchText(query)
+	if query == "" {
+		return branches
+	}
+
+	type match struct {
+		branch string
+		score  int
+	}
+	matches := make([]match, 0, len(branches))
+	for _, branch := range branches {
+		if score, ok := branchSearchScore(branch, query); ok {
+			matches = append(matches, match{branch: branch, score: score})
+		}
+	}
+	sort.SliceStable(matches, func(i, j int) bool {
+		if matches[i].score != matches[j].score {
+			return matches[i].score < matches[j].score
+		}
+		return matches[i].branch < matches[j].branch
+	})
+
+	result := make([]string, 0, len(matches))
+	for _, match := range matches {
+		result = append(result, match.branch)
+	}
+	return result
+}
+
+func branchSearchScore(branch, query string) (int, bool) {
+	text := normalizeBranchSearchText(branch)
+	text = strings.TrimPrefix(text, "origin/")
+
+	if text == query {
+		return 0, true
+	}
+	if strings.HasPrefix(text, query) {
+		return 1, true
+	}
+	if strings.Contains(text, "/"+query) {
+		return 2, true
+	}
+	if idx := strings.Index(text, query); idx >= 0 {
+		return 10 + idx, true
+	}
+	if fuzzyContains(text, query) {
+		return 100 + len(text) - len(query), true
+	}
+	return 0, false
+}
+
+func normalizeBranchSearchText(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	value = strings.ReplaceAll(value, "_", "-")
+	return value
+}
+
+func fuzzyContains(text, query string) bool {
+	if query == "" {
+		return true
+	}
+	queryRunes := []rune(query)
+	pos := 0
+	for _, r := range text {
+		if r == queryRunes[pos] {
+			pos++
+			if pos == len(queryRunes) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func resolveUpTargets(cfg *config.Config, args []string, profile string, interactive bool) ([]string, error) {

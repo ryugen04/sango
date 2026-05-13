@@ -126,6 +126,8 @@ func collectDoctorResults() ([]doctor.CheckResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	results = append(results, doctor.CheckBareRepoFetchRefspec(sangoDir)...)
+
 	wtName := service.ResolveActiveWorktreeWithBaseDir(sangoDir, worktreeFlag, cfg.Worktree.ResolveBaseDir())
 	orch, orchErr := service.NewOrchestratorWithWorktree(cfg, cfgFile, service.OrchestratorOptions{WorktreeFlag: worktreeFlag})
 	if orchErr == nil {

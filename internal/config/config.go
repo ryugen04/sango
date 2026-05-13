@@ -42,6 +42,7 @@ type WorktreeConfig struct {
 // WorktreeCreateConfig は worktree create の既定値を定義する
 type WorktreeCreateConfig struct {
 	DefaultServices []string `yaml:"default_services"`
+	AutoFetch       bool     `yaml:"auto_fetch"`
 }
 
 // ResolveBaseDir はworktreeのベースディレクトリを返す

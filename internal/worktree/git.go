@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+const BareRepoFetchRefspec = "+refs/heads/*:refs/remotes/origin/*"
+
 // BareRepoDir はベアリポジトリのディレクトリパスを返す
 // 形式: <sangoDir>/bare/<name>.git
 func BareRepoDir(sangoDir, name string) string {
@@ -32,7 +34,38 @@ func BareClone(sangoDir, name, repoURL string, shallow bool) error {
 	if err != nil {
 		return fmt.Errorf("git clone --bare 失敗 (%s): %w\n%s", name, err, out)
 	}
+	if err := EnsureBareRepoFetchRefspec(target); err != nil {
+		return fmt.Errorf("bare repo fetch refspec 設定失敗 (%s): %w", name, err)
+	}
 	return nil
+}
+
+// EnsureBareRepoFetchRefspec は bare repo の fetch が remote-tracking refs を更新するよう設定する。
+func EnsureBareRepoFetchRefspec(bareDir string) error {
+	cmd := exec.Command("git", "--git-dir", bareDir, "config", "remote.origin.fetch", BareRepoFetchRefspec)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git config remote.origin.fetch 失敗 (%s): %w\n%s", bareDir, err, out)
+	}
+	return nil
+}
+
+// HasBareRepoFetchRefspec は bare repo に期待する fetch refspec が設定済みか確認する。
+func HasBareRepoFetchRefspec(bareDir string) (bool, error) {
+	cmd := exec.Command("git", "--git-dir", bareDir, "config", "--get-all", "remote.origin.fetch")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		if len(out) == 0 {
+			return false, nil
+		}
+		return false, fmt.Errorf("git config --get-all remote.origin.fetch 失敗 (%s): %w\n%s", bareDir, err, out)
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.TrimSpace(line) == BareRepoFetchRefspec {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // WorktreeAdd は既存ブランチからgit worktreeを追加する

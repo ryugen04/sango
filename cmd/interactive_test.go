@@ -189,3 +189,53 @@ func TestResolveWorktreeCreateBranchRemoteSelection(t *testing.T) {
 		t.Fatalf("wtCreateFrom = %q, want origin/feature/auth", wtCreateFrom)
 	}
 }
+
+func TestFuzzyFilterRemoteBranches(t *testing.T) {
+	branches := []string{
+		"origin/alice/feature/login",
+		"origin/bob/fix/SANGO-123-worktree",
+		"origin/feature/auth",
+		"origin/release/2026-05",
+	}
+
+	tests := []struct {
+		name  string
+		query string
+		want  []string
+	}{
+		{
+			name:  "prefix after origin",
+			query: "alice",
+			want:  []string{"origin/alice/feature/login"},
+		},
+		{
+			name:  "slash segment prefix",
+			query: "feature",
+			want:  []string{"origin/feature/auth", "origin/alice/feature/login"},
+		},
+		{
+			name:  "case insensitive ticket",
+			query: "sango-123",
+			want:  []string{"origin/bob/fix/SANGO-123-worktree"},
+		},
+		{
+			name:  "fuzzy ordered chars",
+			query: "ftr",
+			want:  []string{"origin/feature/auth", "origin/alice/feature/login", "origin/bob/fix/SANGO-123-worktree"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := fuzzyFilterRemoteBranches(branches, tt.query)
+			if len(got) != len(tt.want) {
+				t.Fatalf("got = %v, want %v", got, tt.want)
+			}
+			for i := range tt.want {
+				if got[i] != tt.want[i] {
+					t.Fatalf("got = %v, want %v", got, tt.want)
+				}
+			}
+		})
+	}
+}
