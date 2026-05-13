@@ -2,3 +2,5 @@
 - 実装前に `.codex/plans/active/` に plan を作成する
 - 最新の active plan を source of truth として実装する
 - 変更は必要最小限に留め、テストまたは検証コマンドを実行する
+- コミットは署名付きで作成し、PR 作成・更新後に GitHub 上で `verified: true` を確認する
+- 署名 verification が `unknown_key` などで失敗する場合は、GitHub に signing key を登録するまで mergeable 扱いにしない

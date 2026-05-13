@@ -40,7 +40,7 @@ sango worktree create feature/auth
 sango worktree create
 ```
 
-対象サービスに対してワークツリーを作成する。引数なしの対話UIでは、既存の `origin/*` ブランチを選んで同名のローカルブランチとしてcheckoutできる。
+対象サービスに対してワークツリーを作成する。引数なしの対話UIでは、既存の `origin/*` ブランチを検索・絞り込みして選び、同名のローカルブランチとしてcheckoutできる。
 
 オプション:
 
@@ -48,6 +48,7 @@ sango worktree create
 |-------|------|
 | `--services s1,s2` | 対象サービスを限定 |
 | `--from base-branch` | 分岐元ブランチを指定（デフォルト: main） |
+| `--fetch` | ブランチ候補表示前に対象リポジトリを fetch |
 | `--no-setup` | セットアップコマンドをスキップ |
 
 既定対象サービスは `sango.yaml` で指定できる。
@@ -57,11 +58,14 @@ worktree:
   base_dir: worktrees
   create:
     default_services: [api, web]
+    auto_fetch: true
 ```
 
 `base_dir` はワークツリー配置先で、未指定時の既定値は `worktrees`。`.worktrees` などに変更した場合、`worktree create` の作成先、サービス起動時のパス解決、ワークツリー配下で実行したときの CWD 検出はすべてその値を基準にする。相対パスはプロジェクトルート基準。
 
 `default_services` は対話UIの初期選択に使われる。非対話実行で `--services` を省略した場合も、この値が作成対象になる。
+
+`auto_fetch: true` を設定すると、`worktree create` のブランチ候補表示前に対象リポジトリを fetch する。候補が見つからない場合は bare cache が古い可能性があるため、`--fetch` または `auto_fetch` を使う。remote に存在しないブランチは、従来どおりブランチ名を直接指定して新規作成できる。
 
 作成時の処理:
 1. 各サービスのbare repoから新ブランチでworktreeを作成

@@ -18,6 +18,7 @@ var (
 	wtCreateServices string
 	wtCreateNoSetup  bool
 	wtCreateFrom     string
+	wtCreateFetch    bool
 )
 
 var worktreeCreateCmd = &cobra.Command{
@@ -32,6 +33,11 @@ var worktreeCreateCmd = &cobra.Command{
 		targetServices, err := resolveWorktreeServices(cfg, wtCreateServices)
 		if err != nil {
 			return err
+		}
+		if wtCreateFetch || cfg.Worktree.Create.AutoFetch {
+			if err := fetchWorktreeCreateBranchCandidates(worktree.DefaultDir(), cfg, targetServices); err != nil {
+				return err
+			}
 		}
 		remoteBranches := collectCommonRemoteBranches(worktree.DefaultDir(), cfg, targetServices)
 		branch, err := resolveWorktreeCreateBranch(args, remoteBranches)
@@ -49,6 +55,7 @@ func init() {
 	worktreeCreateCmd.Flags().StringVar(&wtCreateServices, "services", "", "対象サービス（カンマ区切り）")
 	worktreeCreateCmd.Flags().BoolVar(&wtCreateNoSetup, "no-setup", false, "セットアップをスキップする")
 	worktreeCreateCmd.Flags().StringVar(&wtCreateFrom, "from", "", "ベースブランチ名")
+	worktreeCreateCmd.Flags().BoolVar(&wtCreateFetch, "fetch", false, "ブランチ候補表示前に対象リポジトリを fetch する")
 	worktreeCmd.AddCommand(worktreeCreateCmd)
 }
 
@@ -433,6 +440,17 @@ func collectCommonRemoteBranches(sangoDir string, cfg *config.Config, services [
 	}
 	sort.Strings(branches)
 	return branches
+}
+
+func fetchWorktreeCreateBranchCandidates(sangoDir string, cfg *config.Config, services []string) error {
+	for _, name := range repoServicesFromTargets(cfg, services) {
+		fmt.Printf("[sango] %s のブランチ候補を更新中...\n", name)
+		bareDir := worktree.BareRepoDir(sangoDir, name)
+		if err := worktree.FetchOrigin(bareDir); err != nil {
+			return fmt.Errorf("サービス %s のブランチ候補 fetch に失敗: %w", name, err)
+		}
+	}
+	return nil
 }
 
 func repoServicesFromTargets(cfg *config.Config, services []string) []string {

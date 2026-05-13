@@ -59,6 +59,18 @@ func runGit(t *testing.T, dir string, args ...string) {
 	}
 }
 
+func gitOutput(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git %v 失敗 (dir=%s): %v", args, dir, err)
+	}
+	return string(out)
+}
+
 // TestBareRepoDir はBareRepoDirが正しいパスを返すことを検証する
 func TestBareRepoDir(t *testing.T) {
 	sangoDir := "/tmp/sango"
@@ -91,6 +103,17 @@ func TestBareClone(t *testing.T) {
 	headPath := filepath.Join(clonedDir, "HEAD")
 	if _, err := os.Stat(headPath); err != nil {
 		t.Fatalf("HEADファイルが存在しない（ベアリポジトリではない可能性あり）: %v", err)
+	}
+
+	got := gitOutput(t, clonedDir, "config", "--get", "remote.origin.fetch")
+	if got != BareRepoFetchRefspec+"\n" {
+		t.Fatalf("remote.origin.fetch = %q, want %q", got, BareRepoFetchRefspec)
+	}
+
+	runGit(t, clonedDir, "fetch", "origin")
+	remoteRef := gitOutput(t, clonedDir, "rev-parse", "--verify", "refs/remotes/origin/main")
+	if remoteRef == "" {
+		t.Fatal("refs/remotes/origin/main が作成されていません")
 	}
 }
 
