@@ -61,6 +61,11 @@ func init() {
 
 func runWorktreeCreate(cfg *config.Config, branch string, targetServices []string) error {
 	sangoDir := worktree.DefaultDir()
+	wtDir := cfg.Worktree.WorktreeDir(branch)
+	absWtRoot, err := filepath.Abs(wtDir)
+	if err != nil {
+		return fmt.Errorf("ワークツリーパスの解決に失敗: %w", err)
+	}
 
 	// ロック取得
 	lock, err := worktree.AcquireLock(sangoDir, "worktree-op")
@@ -121,19 +126,18 @@ func runWorktreeCreate(cfg *config.Config, branch string, targetServices []strin
 			baseBranch = svc.DefaultBranch
 		}
 
-		wtDir := cfg.Worktree.WorktreeDir(branch)
 		absWtPath, err := filepath.Abs(filepath.Join(wtDir, name))
 		if err != nil {
 			return fmt.Errorf("ワークツリーパスの解決に失敗: %w", err)
 		}
 		// ベアリポジトリで最新を取得
 		bareDir := worktree.BareRepoDir(sangoDir, name)
-		fmt.Printf("[sango] Fetching latest changes for %s...\n", name)
+		fmt.Printf("[sango] fetch: %s\n", name)
 		if err := worktree.FetchOrigin(bareDir); err != nil {
 			return fmt.Errorf("サービス %s の git fetch に失敗: %w", name, err)
 		}
 
-		fmt.Printf("[sango] %s のワークツリーを作成中... (branch: %s from %s)\n", name, branch, baseBranch)
+		fmt.Printf("[sango] create: %s (branch: %s, from: %s)\n", name, branch, baseBranch)
 
 		// まず新規ブランチ作成を試み、既存ブランチなら既存ブランチでworktree追加
 		if err := worktree.WorktreeAddNewBranch(sangoDir, name, absWtPath, branch, baseBranch); err != nil {
@@ -155,9 +159,10 @@ func runWorktreeCreate(cfg *config.Config, branch string, targetServices []strin
 	}
 
 	// 後処理を実行（include展開、setup、hooks）
-	fmt.Println("[sango] 後処理を実行中...")
+	fmt.Println("[sango] postprocess")
 	ppResult := worktree.RunPostProcess(cfg, sangoDir, branch, allServiceNames, offset, worktree.PostProcessOptions{
 		SkipSetup: wtCreateNoSetup,
+		Quiet:     true,
 	})
 
 	// include展開エラーの処理
@@ -199,7 +204,8 @@ func runWorktreeCreate(cfg *config.Config, branch string, targetServices []strin
 		return fmt.Errorf("worktrees.jsonの保存に失敗: %w", err)
 	}
 
-	fmt.Printf("[sango] ワークツリー %q を作成しました (offset: %d)\n", branch, offset)
+	fmt.Printf("[sango] created: %s (offset: %d)\n", branch, offset)
+	fmt.Printf("[sango] path: %s\n", absWtRoot)
 	return nil
 }
 
@@ -444,7 +450,7 @@ func collectCommonRemoteBranches(sangoDir string, cfg *config.Config, services [
 
 func fetchWorktreeCreateBranchCandidates(sangoDir string, cfg *config.Config, services []string) error {
 	for _, name := range repoServicesFromTargets(cfg, services) {
-		fmt.Printf("[sango] %s のブランチ候補を更新中...\n", name)
+		fmt.Printf("[sango] fetch branches: %s\n", name)
 		bareDir := worktree.BareRepoDir(sangoDir, name)
 		if err := worktree.FetchOrigin(bareDir); err != nil {
 			return fmt.Errorf("サービス %s のブランチ候補 fetch に失敗: %w", name, err)
